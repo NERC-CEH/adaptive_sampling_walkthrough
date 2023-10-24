@@ -1,0 +1,105 @@
+---
+title: "Adaptive sampling walkthrough"
+author: "TMM"
+date: "2023-10-24"
+output: html_document
+---
+
+```{r setup}
+
+library(terra)
+library(tidyverse)
+
+```
+
+
+```{r initial_data}
+
+# environmental data for raster
+envdat <- rast('../../data/environmental_data.tif')
+
+```
+
+
+# Introduction
+
+This R notebook accompanies figure XX in the paper 'Adaptive sampling in ecology: current practice and future opportunities'. Here, we aim to demonstrate how adaptive sampling can be used in an ecological setting. For this, we take the case of species distribution models, where we are aiming to improve our knowledge of species' distributions.
+
+This will follow several steps:
+
+0. Generation of initial data
+1. Defining a criterion
+  a. Empirical
+  b. Model-based
+2. Selection of new sampling occasions
+  a. Optimised
+  b. Independent draws
+3. Sampling activity
+  - Rounds vs batches
+
+
+# Adaptive sampling
+
+## Step 0. Generation of initial data
+
+For any adaptive sampling programme, we first need some initial data on which we can base our further sampling. This is code is located in `/scripts/processing/simulate_species.R` and uses some environmental variables to generate the true distribution of a species. We then sample this true species distribution according to the suburban distribution of GB, mimicking real life where people tend to record close to their homes.
+
+```{r load_species_data}
+
+species_records <- read.csv("../../outputs/simulated_data/sampled_species_distrib.csv")[,-1]
+head(species_records)
+
+```
+
+
+
+## Step 1. Definition of a criterion
+
+## Step 1a. Empirical criterion
+
+An empirical criterion involves using only the data to determine locations for further sampling. In this case, we will identify regions that have not yet been sampled. In the code below, we convert our species records into a 1km binary raster format for presences (`1`) and absences (`0`). This creates a raster map of the species' distribution which will be our *empirical sampling layer*.
+
+
+```{r empirical}
+
+# convert species records to raster
+species_rast <- rasterize(x = as.matrix(species_records), y = envdat[[1]], 
+                          values = 1, background = 0)
+species_rast_gb <- mask(species_rast, envdat[[31]]) # mask to GB
+# Unvisited locations are any 0s!
+
+## visualise
+sprast_df <- as.data.frame(species_rast_gb, xy = TRUE)
+# head(sprast_df)
+
+ggplot(sprast_df, aes(x,y, fill = factor(last))) +
+  geom_tile() +
+  scale_fill_manual(name = '', labels = c("No records", "Observation"),
+                    values = c("#E69F00", "#009E73")) +
+  
+  theme_bw()
+
+```
+
+
+## Step 1b. Model-based criterion
+
+In a model-based adaptive sampling criterion, further sampling is based on some aspect of a model. Here, we will model the species distribution as a function of several environmental variables 
+
+```{r}
+
+## get environmental data for each observation -- extract() from envdat
+# choose the variables used to simulate the species and a few others
+
+
+## then do a model - simple lm()? or maybe a gam to get a better error estimate not tied to covariate extremes...
+
+
+## then extract the standard error(?)
+
+
+## then get back onto GB
+
+
+```
+
