@@ -44,6 +44,7 @@ plot(st_geometry(true_species_dist), pch = 4, add = TRUE) ## species distributio
 
 #### simulate biassed sampling of the species
 # sample according to suburban layer - biassed sampling
+# areas with high suburban values will be more likely to be sampled
 true_species_suburban <- extract(envdat[['suburban']], true_species_dist)
 
 # get biassed sampling of true species distribution
