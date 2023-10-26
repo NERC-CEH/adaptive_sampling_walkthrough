@@ -7,8 +7,11 @@ output: html_document
 
 ```{r setup}
 
+library(mgcv)
 library(terra)
 library(tidyverse)
+library(sf)
+library(viridis)
 
 ```
 
@@ -16,7 +19,7 @@ library(tidyverse)
 ```{r initial_data}
 
 # environmental data for raster
-envdat <- rast('../../data/environmental_data.tif')
+envdat <- rast('../../data/environmental_data_subset.tif')
 
 ```
 
@@ -29,13 +32,13 @@ This will follow several steps:
 
 0. Generation of initial data
 1. Defining a criterion
-  a. Empirical
-  b. Model-based
+a. Empirical
+b. Model-based
 2. Selection of new sampling occasions
-  a. Optimised
-  b. Independent draws
+a. Optimised
+b. Independent draws
 3. Sampling activity
-  - Rounds vs batches
+- Rounds vs batches
 
 
 # Adaptive sampling
@@ -47,11 +50,13 @@ For any adaptive sampling programme, we first need some initial data on which we
 ```{r load_species_data}
 
 species_records <- read.csv("../../outputs/simulated_data/sampled_species_distrib.csv")[,-1]
+
+# define observations
+species_records$observations <- 1
+
 head(species_records)
 
 ```
-
-
 
 ## Step 1. Definition of a criterion
 
@@ -63,16 +68,17 @@ An empirical criterion involves using only the data to determine locations for f
 ```{r empirical}
 
 # convert species records to raster
-species_rast <- rasterize(x = as.matrix(species_records), y = envdat[[1]], 
+species_rast <- rasterize(x = as.matrix(species_records[,1:2]), y = envdat[[1]], 
                           values = 1, background = 0)
-species_rast_gb <- mask(species_rast, envdat[[31]]) # mask to GB
+species_rast_gb <- mask(species_rast, envdat[["elev"]]) # mask to GB
 # Unvisited locations are any 0s!
 
 ## visualise
 sprast_df <- as.data.frame(species_rast_gb, xy = TRUE)
+colnames(sprast_df) <- c('x', 'y', 'observations')
 # head(sprast_df)
 
-ggplot(sprast_df, aes(x,y, fill = factor(last))) +
+ggplot(sprast_df, aes(x,y, fill = factor(observations))) +
   geom_tile() +
   scale_fill_manual(name = '', labels = c("No records", "Observation"),
                     values = c("#E69F00", "#009E73")) +
@@ -84,22 +90,96 @@ ggplot(sprast_df, aes(x,y, fill = factor(last))) +
 
 ## Step 1b. Model-based criterion
 
-In a model-based adaptive sampling criterion, further sampling is based on some aspect of a model. Here, we will model the species distribution as a function of several environmental variables 
+In a model-based adaptive sampling criterion, further sampling is based on some aspect of a model. Here, we will model the species distribution as a function of several environmental variables using GAMs. Then we will use the standard error as our measure of uncertainty on which to base further sampling. 
 
-```{r}
+### Pseudoabsences
+
+A key consideration in SDM of presence-only data is the choice of method to get pseudoabsences. This requires careful thought but here, we choose to use a random background approach as we are not interested in its effect on model performance. We will use the layer above to generate an eaqual number of pseudoabsences to the number of presences
+
+```{r pseudoabsences}
+
+# get all locations with no records
+no_records <- sprast_df[sprast_df$observations==0,]
+
+# randomly sample
+psedoabs_index <- sample(1:nrow(no_records), size = 350)
+
+# extract pseudoabsences
+pseudoabs <- no_records[psedoabs_index,]
+
+# bind to observations
+speciesobs_df <- rbind(species_records, pseudoabs)
+
+# visualise
+ggplot(speciesobs_df, aes(x, y, col = factor(observations))) +
+  geom_point() +
+  scale_colour_manual(name = '', labels = c("Pseudoabsences", "Presences"),
+                      values = c("#E69F00", "#009E73")) +
+  
+  theme_bw()
+
+```
+
+### Modelling
+
+Model data and predict for GB
+
+```{r modelling}
 
 ## get environmental data for each observation -- extract() from envdat
 # choose the variables used to simulate the species and a few others
 
+# extract data
+recsdf <- cbind(speciesobs_df, 
+                terra::extract(envdat, speciesobs_df[1:2], 
+                               xy = FALSE, method = "simple"))
+head(recsdf)
 
-## then do a model - simple lm()? or maybe a gam to get a better error estimate not tied to covariate extremes...
+# model - simple model with few explanatory variables
+gammod <- gam(observations ~ s(impr_grass) +
+                 s(elev) + 
+                 s(bio_1),
+               family = 'binomial',
+               data = recsdf)
+summary(gammod)
+
+# convert environmental raster to data frame
+edatdf <- as.data.frame(envdat[[c("impr_grass", "elev", "bio_1")]],
+                        na.rm = TRUE,
+                        xy = TRUE)
+
+# create a new x variable
+newx <- edatdf[, c("x", "y", "impr_grass", "elev", "bio_1")]
+
+# predict onto environment
+newy <- predict(gammod, 
+                newx,
+                type = "response",
+                se.fit = TRUE)
+
+df <- na.omit(cbind(newx, newy))
 
 
-## then extract the standard error(?)
+```
 
 
-## then get back onto GB
+### Extracting uncertainty
 
+```{r plotting}
+
+# probability of presences
+ggplot(df, aes(x, y, fill = fit)) +
+  geom_tile() +
+  scale_fill_viridis_c(name = "Probability of presence") +
+  
+  theme_bw()
+
+# uncertainty 
+ggplot(df, aes(x, y, fill = (se.fit))) +
+  geom_tile() +
+  scale_fill_viridis_c(name = "Standard error") +
+  
+  theme_bw()
 
 ```
 
