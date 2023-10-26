@@ -4,6 +4,7 @@
 library(terra)
 library(sf)
 library(dismo)
+library(rnaturalearth)
 
 
 ## prepare environmental data
@@ -30,52 +31,60 @@ library(dismo)
   
   #### create environmental raster
   # uk outline
-  countries <- ne_download(scale = 'large', type = "countries", returnclass = 'sf')
-  uk <- st_transform(st_geometry(countries[countries$ADMIN == 'United Kingdom',]), crs = 27700)
+  # https://www.eea.europa.eu/data-and-maps/data/eea-reference-grids-2/gis-files/great-britain-shapefile
+  # countries <- ne_download(scale = 'large', type = "countries", returnclass = 'sf')
+  # uk <- st_transform(st_geometry(countries[countries$ADMIN == 'United Kingdom',]), crs = 27700)
   # plot(st_geometry(uk))
+  
+  # get some habitat data - landcover map 2015
+  lcm2015 <- rast('data/lcm2015_1km_raster/data/LCM2015_GB_1km_percent_cover_target_class.tif')
+  gbmask <- sum(lcm2015)
+  
+  lcmmasked <- mask(lcm2015, gbmask, maskvalues = 0)
+  names(lcmmasked) <- c('broad_wood', 'conif_wood', 'arable', 'impr_grass', 'neutr_grass', 'calc_grass', 'acid_grass',
+                        'fen_marsh_swamp', 'heather', 'heather_grass', 'bog', 'inland_rock', 'saltwater', 'freshwater',
+                        'sup_lit_rock', 'sup_lit_sed', 'lit_rock', 'lit_sed', 'saltmarsh', 'urban', 'suburban')
+  # plot(lcmmask)
+  
   
   # elevation - bioclim elevation wc2.1 30s
   elev <- rast('data/wc2.1_30s_elev/wc2.1_30s_elev.tif')
   elev_uk <- project(terra::crop(elev, y = ext(-8, 2.5, 49.5, 61)), y = "epsg:27700")
-  elevcrp <- mask(elev_uk, vect(uk))
-  names(elevcrp) <- gsub('wc2.1_30s_', replacement = '', names(elevcrp))
+  # elevcrp <- mask(elev_uk, gbmask)
+  names(elev_uk) <- gsub('wc2.1_30s_', replacement = '', names(elev_uk))
   
   # plot(elevcrp)
   
   # get some climate data - bioclim 2.1 30s
-  bioclim <- do.call(c, lapply(list.files('data/wc2.1_30s_bio/', full.names = TRUE),
+  bioclimvar <- do.call(c, lapply(list.files('data/wc2.1_30s_bio/', full.names = TRUE),
                                rast))
-  bio_uk <- project(terra::crop(bioclim, y = ext(-8, 2.5, 49.5, 61)), y = "epsg:27700")
-  biocrp <- mask(bio_uk, vect(uk))
-  names(biocrp) <- gsub('wc2.1_30s_', replacement = '', names(biocrp))
+  bio_uk <- project(terra::crop(bioclimvar, y = ext(-8, 2.5, 49.5, 61)), y = "epsg:27700")
+  # biocrp <- mask(bio_uk, gbmask)
+  names(bio_uk) <- gsub('wc2.1_30s_', replacement = '', names(bio_uk))
   
   # plot(biocrp)
   
   # combine elevatiom and bioclim
-  clim_elev <- c(elevcrp, biocrp)
-  
-  # get some habitat data - landcover map 2015
-  lcm2015 <- rast('data/lcm2015_1km_raster/data/LCM2015_GB_1km_percent_cover_target_class.tif')
-  lcmmask <- mask(lcm2015, vect(uk))
-  names(lcmmask) <- c('broad_wood', 'conif_wood', 'arable', 'impr_grass', 'neutr_grass', 'calc_grass', 'acid_grass',
-                      'fen_marsh_swamp', 'heather', 'heather_grass', 'bog', 'inland_rock', 'saltwater', 'freshwater',
-                      'sup_lit_rock', 'sup_lit_sed', 'lit_rock', 'lit_sed', 'saltmarsh', 'urban', 'suburban')
-  # plot(lcmmask)
+  clim_elev <- c(elev_uk, bio_uk)
   
   # project climate and elevation data to land cover
-  climelev_proj <- terra::project(clim_elev, lcmmask,
+  climelev_proj <- terra::project(clim_elev, lcmmasked,
                                   method = 'bilinear')
-  # plot(climelev_proj)
+
+  # mask to GB
+  climelev_proj <- mask(climelev_proj, gbmask)
   
   # combine
-  envdat <- c(lcmmask, climelev_proj)
+  envdat <- c(lcmmasked, climelev_proj)
   plot(envdat)
   
-  terra::writeRaster(envdat, file = 'data/environmental_data.tif')
+  terra::writeRaster(envdat, file = 'data/environmental_data.tif',
+                     overwrite = TRUE)
 }
 
 # read environmental data
 envdat <- terra::rast('data/environmental_data.tif')
+plot(envdat)
 
 ##### simulate true distribution of a single species
 # combination of precipitation seasonailty, elevation and broadleaf woodland
