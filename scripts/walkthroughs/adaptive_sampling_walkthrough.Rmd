@@ -32,13 +32,13 @@ This will follow several steps:
 
 0. Generation of initial data
 1. Defining a criterion
-a. Empirical
-b. Model-based
+  1a. Empirical
+  1b. Model-based
 2. Selection of new sampling occasions
-a. Optimised
-b. Independent draws
+  2a. Optimised
+  2b. Independent draws
 3. Sampling activity
-- Rounds vs batches
+  - Rounds vs batches
 
 
 # Adaptive sampling
@@ -60,7 +60,7 @@ head(species_records)
 
 ## Step 1. Definition of a criterion
 
-## Step 1a. Empirical criterion
+### Step 1a. Empirical criterion
 
 An empirical criterion involves using only the data to determine locations for further sampling. In this case, we will identify regions that have not yet been sampled. In the code below, we convert our species records into a 1km binary raster format for presences (`1`) and absences (`0`). This creates a raster map of the species' distribution which will be our *empirical sampling layer*.
 
@@ -74,11 +74,11 @@ species_rast_gb <- mask(species_rast, envdat[["elev"]]) # mask to GB
 # Unvisited locations are any 0s!
 
 ## visualise
-sprast_df <- as.data.frame(species_rast_gb, xy = TRUE)
-colnames(sprast_df) <- c('x', 'y', 'observations')
-# head(sprast_df)
+empirical_criterion <- as.data.frame(species_rast_gb, xy = TRUE)
+colnames(empirical_criterion) <- c('x', 'y', 'observations')
+# head(empirical_df)
 
-ggplot(sprast_df, aes(x,y, fill = factor(observations))) +
+ggplot(empirical_criterion, aes(x,y, fill = factor(observations))) +
   geom_tile() +
   scale_fill_manual(name = '', labels = c("No records", "Observation"),
                     values = c("#E69F00", "#009E73")) +
@@ -88,7 +88,7 @@ ggplot(sprast_df, aes(x,y, fill = factor(observations))) +
 ```
 
 
-## Step 1b. Model-based criterion
+### Step 1b. Model-based criterion
 
 In a model-based adaptive sampling criterion, further sampling is based on some aspect of a model. Here, we will model the species distribution as a function of several environmental variables using GAMs. Then we will use the standard error as our measure of uncertainty on which to base further sampling. 
 
@@ -120,7 +120,7 @@ ggplot(speciesobs_df, aes(x, y, col = factor(observations))) +
 
 ```
 
-### Modelling
+#### Modelling
 
 Model data and predict for GB
 
@@ -137,10 +137,10 @@ head(recsdf)
 
 # model - simple model with few explanatory variables
 gammod <- gam(observations ~ s(impr_grass) +
-                 s(elev) + 
-                 s(bio_1),
-               family = 'binomial',
-               data = recsdf)
+                s(elev) + 
+                s(bio_1),
+              family = 'binomial',
+              data = recsdf)
 summary(gammod)
 
 # convert environmental raster to data frame
@@ -157,29 +157,70 @@ newy <- predict(gammod,
                 type = "response",
                 se.fit = TRUE)
 
-df <- na.omit(cbind(newx, newy))
+modelbased_criterion <- na.omit(cbind(newx, newy))
 
 
 ```
 
 
-### Extracting uncertainty
+#### Extracting uncertainty
 
-```{r plotting}
+```{r standard error}
 
 # probability of presences
-ggplot(df, aes(x, y, fill = fit)) +
+ggplot(modelbased_criterion, aes(x, y, fill = fit)) +
   geom_tile() +
   scale_fill_viridis_c(name = "Probability of presence") +
   
   theme_bw()
 
-# uncertainty 
-ggplot(df, aes(x, y, fill = (se.fit))) +
+# standard error 
+ggplot(modelbased_criterion, aes(x, y, fill = (se.fit))) +
   geom_tile() +
   scale_fill_viridis_c(name = "Standard error") +
   
   theme_bw()
+
+
+```
+
+
+## Step 2. Selection of new sampling occasions
+
+Important to choose the number of new locations versus number of batches. We're going to choose 10% of number of observations = 35.
+
+### Step 2a. Optimised
+
+```{r empirical_optimised}
+
+empirical_criterion
+
+```
+
+
+```{r model-based_optimised}
+
+modelbased_criterion
+
+```
+
+
+### Step 2b. Independent draws
+
+```{r empirical_independent_draws}
+
+emp_crit <- empirical_criterion[empirical_criterion$observations == 0,]
+
+emp_critind <- sample(1:nrow(emp_crit), 3500) ## how many new locations are visited
+
+### need to compare against the true species distribution to see whether new observations are made
+
+```
+
+
+```{r model-based_independent_draws}
+
+modelbased_criterion
 
 ```
 

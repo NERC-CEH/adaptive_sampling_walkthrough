@@ -2,6 +2,7 @@
 data/*
 outputs/*
 env_names.csv
+*.html
 
 # History files
 .Rhistory
