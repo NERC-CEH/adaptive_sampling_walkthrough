@@ -6,24 +6,17 @@ library(sf)
 library(dismo)
 library(rnaturalearth)
 
-# function to sample a raster
-sample_rast <- function(samplerast, n_vals) {
-  
-  # function to convert between 0-1
-  scale_values <- function(x){(x-min(x))/(max(x)-min(x))}
-  
-  # convert to raster
-  sample_dat <- as.data.frame(samplerast, xy = TRUE)
-  
-  # get an index for sampling - probability final column
-  row_ind <- sample(1:nrow(sample_dat), size = n_vals, prob = scale_values(sample_dat[,3]^3))
-  
-  # return sampled rows
-  samples <- sample_dat[row_ind,]
-  
-  return(samples)
-  
+# function to scale values between 0 and maxval
+scalevals <- function(x, maxval=100) {
+  if(class(x) == "SpatRaster"){
+    nx <- c(minmax(x))
+  } else {
+    nx <- range(x)
+  }
+  (x - nx[1]) / (nx[2] - nx[1])*maxval
 }
+
+
 
 ## prepare environmental data
 # Run once, takes a while!
@@ -80,7 +73,7 @@ sample_rast <- function(samplerast, n_vals) {
                      overwrite = TRUE)
   
   # select subset of variables
-  envdat <- envdat[[c("impr_grass", "heather", "suburban", "elev", 
+  envdat <- envdat[[c("impr_grass", "heather", "urban", "suburban", "elev", 
                       "bio_1", "bio_2", "bio_12", "bio_15")]]
   
   terra::writeRaster(envdat, file = 'data/environmental_data_subset.tif',
@@ -89,39 +82,95 @@ sample_rast <- function(samplerast, n_vals) {
 
 # read environmental data
 envdat <- terra::rast('data/environmental_data_subset.tif')
-plot(envdat)
+# plot(envdat)
 
 ##### simulate true distribution of a single species
 # combination of precipitation seasonailty, elevation and broadleaf woodland
-species_layer <- envdat[["bio_1"]]+ # Annual mean temp
-  envdat[["bio_15"]]* # PrecipSeasonality
+species_layer <- envdat[["bio_1"]]* # Annual mean temp
+  envdat[["bio_15"]]+ # PrecipSeasonality
   envdat[["impr_grass"]] # improved grassland
+names(species_layer) <- 'species_probability'
 plot(species_layer)
 
-# sample n locs to get true species' distribution
-true_species_locs <- sample_rast(species_layer, n_vals = 1000)[,c('x','y')]
+## convert to presence/absence
+# scale betweeen 0-100
+nx <- minmax(species_layer)    
+scaled_distrib_rast <- (species_layer - nx[1,]) / (nx[2,] - nx[1,])*100
 
-# convert to sf object
-true_species_dist <- st_as_sf(true_species_locs, coords = c("x", "y"), crs = 27700)
-plot(st_geometry(true_species_dist), pch = 4, add = TRUE) ## species distribution
+scaled_distrib_rast <- scalevals(species_layer)
+prob_pres_spp <- as.data.frame(scaled_distrib_rast, xy = TRUE)
+head(prob_pres_spp)
+
+# look at quantiles
+quantile(prob_pres_spp$species_probability, seq(0, 1, 0.10))
+
+# convert everything > 90% to presence/absence
+prob_pres_spp$species_presence <- ifelse(prob_pres_spp$species_probability >= 
+                                           quantile(prob_pres_spp$species_probability, seq(0, 1, 0.10))[9],
+                                         1, 0)
+true_species_locs <- prob_pres_spp[prob_pres_spp$species_presence==1,]
+
+# plot
+plot(scaled_distrib_rast)
+points(x=true_species_locs$x, y=true_species_locs$y, pch = 19, cex = 0.1)
+
+# save true species locations
+true_distrib <- rasterize(as.matrix(true_species_locs[,1:2]), envdat[["bio_1"]], background = 0)
+true_distrib <- terra::mask(true_distrib, envdat[["bio_1"]])
+plot(true_distrib)
 
 
 #### simulate biassed sampling of the species
 # sample according to suburban layer - biassed sampling
 # areas with high suburban values will be more likely to be sampled
+
+# convert to sf object for extract 
+true_species_dist <- st_as_sf(true_species_locs, coords = c("x", "y"), crs = 27700)
+plot(st_geometry(true_species_dist), pch = 4, cex = 0.2, add = TRUE) ## species distribution
+
+# extract values of urban and suburban
 true_species_suburban <- terra::extract(envdat[['suburban']], true_species_dist)
+true_species_urban <- terra::extract(envdat[['urban']], true_species_dist)
 
 # get biassed sampling of true species distribution
-samp_spp_ind <- sample(1:nrow(true_species_locs), size = 350, prob = true_species_suburban[,2])
+
+latitude_bias <- true_species_locs$species_probability/
+  true_species_locs$y^8 
+
+urban_bias <- (true_species_urban[,2] + 
+                 true_species_suburban[,2])^2
+
+samp_spp_ind <- sample(1:nrow(true_species_locs), size = nrow(true_species_locs)*0.6, # sample 40% of the distribution
+                       prob = true_species_locs$species_probability/
+                         true_species_locs$y^8)
+
+# true_species_urban[,2]+1
+#(#true_species_suburban[,2]+ # add one so that non-suburban areas can be sampled too
+# true_species_urban[,2]+1))/
+
 sampled_species_distrib <- true_species_locs[samp_spp_ind, c('x', 'y')]
 
+plot(scaled_distrib_rast)
 points(x = sampled_species_distrib$x, y = sampled_species_distrib$y, 
+       pch = 4, col = "blue")
+
+samp_spp_ind_urb <- sample(1:nrow(true_species_locs), size = nrow(true_species_locs)*0.6, # sample 40% of the distribution
+                           prob = (true_species_urban[,2] + 
+                                     true_species_suburban[,2])^10, replace = TRUE)
+
+sampled_species_distrib_urb <- true_species_locs[samp_spp_ind_urb, c('x', 'y')]
+
+plot(scaled_distrib_rast)
+points(x = sampled_species_distrib_urb$x, y = sampled_species_distrib_urb$y, 
        pch = 4, col = "red")
 
-head(sampled_species_distrib)
-
 #### write out data
-# true species distribution
+# true species distribution raster
+writeRaster(true_distrib, 
+            filename = 'outputs/simulated_data/true_species_distribution.tif',
+            overwrite = TRUE)
+
+# true species distribution csv
 write.csv(true_species_locs, 
           file = 'outputs/simulated_data/true_species_distribution.csv')
 
