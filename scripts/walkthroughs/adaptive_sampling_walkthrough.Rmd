@@ -21,6 +21,11 @@ library(viridis)
 # environmental data for raster
 envdat <- rast('../../data/environmental_data_subset.tif')
 
+# true species distribution
+species_distrib_rast <- rast('../../outputs/simulated_data/true_species_distribution.tif')
+species_distrib_df <- as.data.frame(species_distrib_rast, xy=TRUE)
+colnames(species_distrib_df) <- c("x", "y", "presence")
+
 ```
 
 
@@ -94,15 +99,15 @@ In a model-based adaptive sampling criterion, further sampling is based on some 
 
 ### Pseudoabsences
 
-A key consideration in SDM of presence-only data is the choice of method to get pseudoabsences. This requires careful thought but here, we choose to use a random background approach as we are not interested in its effect on model performance. We will use the layer above to generate an eaqual number of pseudoabsences to the number of presences
+A key consideration in SDM of presence-only data is the choice of method to get pseudoabsences. This requires careful thought but here, we choose to use a random background approach as we are not interested in its effect on model performance. We will use the layer above to generate an equal number of pseudoabsences to the number of presences.
 
 ```{r pseudoabsences}
 
 # get all locations with no records
-no_records <- sprast_df[sprast_df$observations==0,]
+no_records <- empirical_criterion[empirical_criterion$observations==0,]
 
 # randomly sample
-psedoabs_index <- sample(1:nrow(no_records), size = 350)
+psedoabs_index <- sample(1:nrow(no_records), size = sum(empirical_criterion$observations==1))
 
 # extract pseudoabsences
 pseudoabs <- no_records[psedoabs_index,]
@@ -112,7 +117,7 @@ speciesobs_df <- rbind(species_records, pseudoabs)
 
 # visualise
 ggplot(speciesobs_df, aes(x, y, col = factor(observations))) +
-  geom_point() +
+  geom_point(size = 0.2) +
   scale_colour_manual(name = '', labels = c("Pseudoabsences", "Presences"),
                       values = c("#E69F00", "#009E73")) +
   
@@ -142,6 +147,7 @@ gammod <- gam(observations ~ s(impr_grass) +
               family = 'binomial',
               data = recsdf)
 summary(gammod)
+plot(gammod)
 
 # convert environmental raster to data frame
 edatdf <- as.data.frame(envdat[[c("impr_grass", "elev", "bio_1")]],
@@ -209,11 +215,22 @@ modelbased_criterion
 
 ```{r empirical_independent_draws}
 
-emp_crit <- empirical_criterion[empirical_criterion$observations == 0,]
+# unvisited areas
+emp_criterion_absences <- empirical_criterion[empirical_criterion$observations == 0,]
+emp_critind <- sample(1:nrow(emp_criterion_absences), 750) ## how many new locations are visited
 
-emp_critind <- sample(1:nrow(emp_crit), 3500) ## how many new locations are visited
+# New locations visited
+emp_indepdraw_new_locs <- emp_criterion_absences[emp_critind,]
 
-### need to compare against the true species distribution to see whether new observations are made
+# plot against true distribution
+ggplot() +
+  geom_tile(data = species_distrib_df, aes(x,y, fill = factor(presence))) +
+  geom_point(data = emp_indepdraw_new_locs, aes(x,y, colour = "new visits"), size = 0.5) +
+  scale_colour_manual(values = "blue", name = "") +
+  scale_fill_manual(name = '', labels = c("Absent", "Present"),
+                    values = c("#E69F00", "#009E73")) +
+  
+  theme_bw()
 
 ```
 
@@ -223,4 +240,9 @@ emp_critind <- sample(1:nrow(emp_crit), 3500) ## how many new locations are visi
 modelbased_criterion
 
 ```
+
+
+
+
+need to compare against the true species distribution to see whether new observations are made --- Maybe next step because it's not technically part of the adaptive sampling process (Maybe in the rounds vs batches section)
 
