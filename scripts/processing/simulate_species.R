@@ -94,9 +94,6 @@ plot(species_layer)
 
 ## convert to presence/absence
 # scale betweeen 0-100
-nx <- minmax(species_layer)    
-scaled_distrib_rast <- (species_layer - nx[1,]) / (nx[2,] - nx[1,])*100
-
 scaled_distrib_rast <- scalevals(species_layer)
 prob_pres_spp <- as.data.frame(scaled_distrib_rast, xy = TRUE)
 head(prob_pres_spp)
@@ -129,40 +126,23 @@ true_species_dist <- st_as_sf(true_species_locs, coords = c("x", "y"), crs = 277
 plot(st_geometry(true_species_dist), pch = 4, cex = 0.2, add = TRUE) ## species distribution
 
 # extract values of urban and suburban
-true_species_suburban <- terra::extract(envdat[['suburban']], true_species_dist)
-true_species_urban <- terra::extract(envdat[['urban']], true_species_dist)
+true_species_urban <- terra::extract(envdat[['suburban']]+envdat[['urban']], 
+                                     true_species_dist)
 
 # get biassed sampling of true species distribution
+latitude_bias <- scalevals(true_species_locs$species_probability/
+                             true_species_locs$y^3)
+urban_bias <- scalevals(true_species_urban[,2]^2)
 
-latitude_bias <- true_species_locs$species_probability/
-  true_species_locs$y^8 
-
-urban_bias <- (true_species_urban[,2] + 
-                 true_species_suburban[,2])^2
-
-samp_spp_ind <- sample(1:nrow(true_species_locs), size = nrow(true_species_locs)*0.6, # sample 40% of the distribution
-                       prob = true_species_locs$species_probability/
-                         true_species_locs$y^8)
-
-# true_species_urban[,2]+1
-#(#true_species_suburban[,2]+ # add one so that non-suburban areas can be sampled too
-# true_species_urban[,2]+1))/
+# sample
+samp_spp_ind <- sample(1:nrow(true_species_locs), size = nrow(true_species_locs)*0.3, # sample 40% of the distribution
+                       prob = latitude_bias * urban_bias)
 
 sampled_species_distrib <- true_species_locs[samp_spp_ind, c('x', 'y')]
 
 plot(scaled_distrib_rast)
 points(x = sampled_species_distrib$x, y = sampled_species_distrib$y, 
        pch = 4, col = "blue")
-
-samp_spp_ind_urb <- sample(1:nrow(true_species_locs), size = nrow(true_species_locs)*0.6, # sample 40% of the distribution
-                           prob = (true_species_urban[,2] + 
-                                     true_species_suburban[,2])^10, replace = TRUE)
-
-sampled_species_distrib_urb <- true_species_locs[samp_spp_ind_urb, c('x', 'y')]
-
-plot(scaled_distrib_rast)
-points(x = sampled_species_distrib_urb$x, y = sampled_species_distrib_urb$y, 
-       pch = 4, col = "red")
 
 #### write out data
 # true species distribution raster

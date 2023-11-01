@@ -37,13 +37,13 @@ This will follow several steps:
 
 0. Generation of initial data
 1. Defining a criterion
-  1a. Empirical
-  1b. Model-based
+1a. Empirical
+1b. Model-based
 2. Selection of new sampling occasions
-  2a. Optimised
-  2b. Independent draws
+2a. Optimised
+2b. Independent draws
 3. Sampling activity
-  - Rounds vs batches
+- Rounds vs batches
 
 
 # Adaptive sampling
@@ -76,7 +76,9 @@ An empirical criterion involves using only the data to determine locations for f
 species_rast <- rasterize(x = as.matrix(species_records[,1:2]), y = envdat[[1]], 
                           values = 1, background = 0)
 species_rast_gb <- mask(species_rast, envdat[["elev"]]) # mask to GB
+
 # Unvisited locations are any 0s!
+emp_criterion_absences <- empirical_criterion[empirical_criterion$observations == 0,]
 
 ## visualise
 empirical_criterion <- as.data.frame(species_rast_gb, xy = TRUE)
@@ -193,13 +195,147 @@ ggplot(modelbased_criterion, aes(x, y, fill = (se.fit))) +
 
 ## Step 2. Selection of new sampling occasions
 
-Important to choose the number of new locations versus number of batches. We're going to choose 10% of number of observations = 35.
+Important to choose the number of new locations versus number of batches. We're going to choose 750 observations
 
 ### Step 2a. Optimised
 
+Going to not allow points to be selected within x distance of each other so that new locations are spread out!
+
 ```{r empirical_optimised}
 
-empirical_criterion
+library(geosphere)
+
+?distm
+
+head(emp_criterion_absences)
+
+# distance between all points won't work because would require huge distance matrix
+# convert to raster, select points, then thin to desired number
+
+empabsr <- terra::rasterize(as.matrix(emp_criterion_absences[,1:2]), envdat[[1]])
+plot(empabsr)
+?spatSample
+
+samp <- spatSample(x = empabsr, size = 5000, xy = TRUE, na.rm = TRUE, method = "random")
+plot(empabsr)
+points(samp$x, samp$y, col = "red", pch = 19, cex = 0.2)
+
+samp_sf <- st_as_sf(samp, coords = c("x", "y"), crs = 27700)
+
+# within_dist <- st_is_within_distance(samp_sf, dist = 20000, sparse = FALSE)
+
+outdf <- data.frame()
+samples_df <- samp_sf
+
+for(r in 1:nrow(samp_sf)) {
+  
+  if(r%%100==0) print(r)
+  
+  # check that sample r is within 20k of all points
+  within_dist <- st_is_within_distance(samp_sf[r,], samples_df, dist = 20000, sparse = FALSE)
+  diag(within_dist) <- FALSE
+  
+  # if no other points are within this distance - save point
+  if(sum(within_dist)==1) {
+    
+    outdf <- rbind(outdf, samp_sf[r,])
+    next
+  }
+  
+  # otherwise, remove from list
+  samples_df <- samples_df[-r,]
+  
+  
+}
+
+dim(outdf)
+
+plot(empabsr)
+points(samp$x, samp$y, col = "red", pch = 19, cex = 0.2)
+plot(st_geometry(outdf), add = TRUE,
+     col = "blue", pch = 19, cex = 0.2)
+
+gdf <- st_make_grid(samp_sf$geometry, cellsize = 20000, square = FALSE)
+
+outdf <- data.frame()
+
+for(i in 1:length(gdf)) {
+  
+  if(i%%100==0) print(i)
+  
+  # check if grid cell contains anything
+  polyofinterest <- st_contains(gdf[i], samp_sf, sparse = FALSE)
+  
+  # if nothing skip to next one
+  if(sum(polyofinterest)==0) next
+  
+  # get the points within the polygon
+  points_within <- st_filter(samp_sf, gdf[i])
+  
+  # randomly sample one from the two
+  pw_ind <- sample(1:nrow(points_within), size = 1)
+  
+  # store the point in the output dataframe
+  outdf <- rbind(outdf, points_within[pw_ind,])
+
+}
+
+
+plot(empabsr)
+plot(gdf, add = TRUE)
+plot(outdf, add = TRUE, pch = 19, cex = 0.5)
+
+
+el <- envdat[["elev"]]
+
+values(el)[!is.na(values(el))] <- 1
+
+plot(el)
+
+elp <- st_as_sf(as.polygons(el))
+plot(elp)
+
+gdf <- gdf[c(unlist(st_touches(elp, gdf)),
+             unlist(st_overlaps(elp, gdf)))]
+
+plot(gdf)
+
+```
+
+should probably create a grid over the whole area and select the points from within each of those grid cells
+
+```{r}
+install.packages('rgeos')
+
+make_grid <- function(x, cell_diameter, cell_area, clip = FALSE) {
+  if (missing(cell_diameter)) {
+    if (missing(cell_area)) {
+      stop("Must provide cell_diameter or cell_area")
+    } else {
+      cell_diameter <- sqrt(2 * cell_area / sqrt(3))
+    }
+  }
+  ext <- as(extent(x) + cell_diameter, "SpatialPolygons")
+  projection(ext) <- projection(x)
+  # generate array of hexagon centers
+  g <- spsample(ext, type = "hexagonal", cellsize = cell_diameter, 
+                offset = c(0.5, 0.5))
+  # convert center points to hexagons
+  g <- HexPoints2SpatialPolygons(g, dx = cell_diameter)
+  # clip to boundary of study area
+  if (clip) {
+    g <- gIntersection(g, x, byid = TRUE)
+  } else {
+    g <- g[x, ]
+  }
+  # clean up feature IDs
+  row.names(g) <- as.character(1:length(g))
+  return(g)
+}
+
+
+
+
 
 ```
 
@@ -216,7 +352,6 @@ modelbased_criterion
 ```{r empirical_independent_draws}
 
 # unvisited areas
-emp_criterion_absences <- empirical_criterion[empirical_criterion$observations == 0,]
 emp_critind <- sample(1:nrow(emp_criterion_absences), 750) ## how many new locations are visited
 
 # New locations visited
@@ -225,8 +360,9 @@ emp_indepdraw_new_locs <- emp_criterion_absences[emp_critind,]
 # plot against true distribution
 ggplot() +
   geom_tile(data = species_distrib_df, aes(x,y, fill = factor(presence))) +
+  geom_point(data = species_records, aes(x,y, colour = "original records"), size = 0.5) +
   geom_point(data = emp_indepdraw_new_locs, aes(x,y, colour = "new visits"), size = 0.5) +
-  scale_colour_manual(values = "blue", name = "") +
+  scale_colour_manual(values = c("blue", "green"), name = "") +
   scale_fill_manual(name = '', labels = c("Absent", "Present"),
                     values = c("#E69F00", "#009E73")) +
   
@@ -234,10 +370,26 @@ ggplot() +
 
 ```
 
+Pick the 750 locations with the highest uncertainty
 
 ```{r model-based_independent_draws}
 
-modelbased_criterion
+head(modelbased_criterion)
+
+sorted_data <- modelbased_criterion[order(modelbased_criterion$se.fit,
+                                          decreasing = TRUE), ]
+
+top_uncert <- sorted_data[1:750, c("x", "y")]
+
+# standard error + top error
+ggplot() +
+  geom_tile(data=modelbased_criterion, aes(x, y, fill = (se.fit))) +
+  geom_point(data=top_uncert, aes(x,y, colour = "new visits"), size = 0.5) +
+  scale_fill_viridis_c(name = "Standard error") +
+  scale_colour_manual(name = "", values = "orange") +
+  
+  theme_bw()
+
 
 ```
 
