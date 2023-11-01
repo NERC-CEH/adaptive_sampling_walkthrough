@@ -203,58 +203,7 @@ Going to not allow points to be selected within x distance of each other so that
 
 ```{r empirical_optimised}
 
-library(geosphere)
-
-?distm
-
-head(emp_criterion_absences)
-
-# distance between all points won't work because would require huge distance matrix
-# convert to raster, select points, then thin to desired number
-
-empabsr <- terra::rasterize(as.matrix(emp_criterion_absences[,1:2]), envdat[[1]])
-plot(empabsr)
-?spatSample
-
-samp <- spatSample(x = empabsr, size = 5000, xy = TRUE, na.rm = TRUE, method = "random")
-plot(empabsr)
-points(samp$x, samp$y, col = "red", pch = 19, cex = 0.2)
-
-samp_sf <- st_as_sf(samp, coords = c("x", "y"), crs = 27700)
-
-# within_dist <- st_is_within_distance(samp_sf, dist = 20000, sparse = FALSE)
-
-outdf <- data.frame()
-samples_df <- samp_sf
-
-for(r in 1:nrow(samp_sf)) {
-  
-  if(r%%100==0) print(r)
-  
-  # check that sample r is within 20k of all points
-  within_dist <- st_is_within_distance(samp_sf[r,], samples_df, dist = 20000, sparse = FALSE)
-  diag(within_dist) <- FALSE
-  
-  # if no other points are within this distance - save point
-  if(sum(within_dist)==1) {
-    
-    outdf <- rbind(outdf, samp_sf[r,])
-    next
-  }
-  
-  # otherwise, remove from list
-  samples_df <- samples_df[-r,]
-  
-  
-}
-
-dim(outdf)
-
-plot(empabsr)
-points(samp$x, samp$y, col = "red", pch = 19, cex = 0.2)
-plot(st_geometry(outdf), add = TRUE,
-     col = "blue", pch = 19, cex = 0.2)
-
+# make a hexagonal grid
 gdf <- st_make_grid(samp_sf$geometry, cellsize = 20000, square = FALSE)
 
 outdf <- data.frame()
@@ -280,25 +229,10 @@ for(i in 1:length(gdf)) {
 
 }
 
-
 plot(empabsr)
 plot(gdf, add = TRUE)
 plot(outdf, add = TRUE, pch = 19, cex = 0.5)
 
-
-el <- envdat[["elev"]]
-
-values(el)[!is.na(values(el))] <- 1
-
-plot(el)
-
-elp <- st_as_sf(as.polygons(el))
-plot(elp)
-
-gdf <- gdf[c(unlist(st_touches(elp, gdf)),
-             unlist(st_overlaps(elp, gdf)))]
-
-plot(gdf)
 
 ```
 
