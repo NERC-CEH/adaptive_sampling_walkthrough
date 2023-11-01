@@ -311,7 +311,12 @@ while(i<750) {
 }
 
 ## top 750 uncertainty locations
-outdf
+
+plot(uncertrast)#, pch = 19)
+plot(uncertgrid, add = TRUE)
+plot(outdf, col = "red", pch = 19, cex= 0.5, 
+     add = TRUE)
+### has it worked?!?!
 
 ```
 
