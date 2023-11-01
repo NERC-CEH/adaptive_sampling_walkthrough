@@ -199,13 +199,22 @@ Important to choose the number of new locations versus number of batches. We're 
 
 ### Step 2a. Optimised
 
-Going to not allow points to be selected within x distance of each other so that new locations are spread out!
+To do this, we are going to do a form of distance sampling. We create a 20km grid over the whole of GB and then sample a single point from within each of these grid cells. 
+
 
 ```{r empirical_optimised}
 
-# make a hexagonal grid
+# covert empriical criterion absences to a raster - all absences
+empabsr <- terra::rasterize(as.matrix(emp_criterion_absences[,1:2]), envdat[[1]])
+
+# sample many points from this raster
+samp <- spatSample(x = empabsr, size = 5000, xy = TRUE, na.rm = TRUE, method = "random")
+samp_sf <- st_as_sf(samp, coords = c("x", "y"), crs = 27700)
+
+# make a hexagonal grid over the sample - 20km 
 gdf <- st_make_grid(samp_sf$geometry, cellsize = 20000, square = FALSE)
 
+# loop through each grid cell and select a a single observation within each hexagonal grid
 outdf <- data.frame()
 
 for(i in 1:length(gdf)) {
@@ -226,57 +235,83 @@ for(i in 1:length(gdf)) {
   
   # store the point in the output dataframe
   outdf <- rbind(outdf, points_within[pw_ind,])
-
+  
 }
 
+# select a random sample of 750 from these points - the desired number of locations
+final_sample_ind <- sample(1:nrow(outdf), size=750)
+empirical_optimised_records <- outdf[final_sample_ind,]
+
+# plot
 plot(empabsr)
 plot(gdf, add = TRUE)
-plot(outdf, add = TRUE, pch = 19, cex = 0.5)
+plot(empirical_optimised_records, add = TRUE, pch = 19, cex = 0.5)
 
 
 ```
 
 should probably create a grid over the whole area and select the points from within each of those grid cells
 
-```{r}
-install.packages('rgeos')
-
-make_grid <- function(x, cell_diameter, cell_area, clip = FALSE) {
-  if (missing(cell_diameter)) {
-    if (missing(cell_area)) {
-      stop("Must provide cell_diameter or cell_area")
-    } else {
-      cell_diameter <- sqrt(2 * cell_area / sqrt(3))
-    }
-  }
-  ext <- as(extent(x) + cell_diameter, "SpatialPolygons")
-  projection(ext) <- projection(x)
-  # generate array of hexagon centers
-  g <- spsample(ext, type = "hexagonal", cellsize = cell_diameter, 
-                offset = c(0.5, 0.5))
-  # convert center points to hexagons
-  g <- HexPoints2SpatialPolygons(g, dx = cell_diameter)
-  # clip to boundary of study area
-  if (clip) {
-    g <- gIntersection(g, x, byid = TRUE)
-  } else {
-    g <- g[x, ]
-  }
-  # clean up feature IDs
-  row.names(g) <- as.character(1:length(g))
-  return(g)
-}
-
-
-
-
-
-```
-
 
 ```{r model-based_optimised}
 
-modelbased_criterion
+## make grid over GB
+
+# covert model-based criterion absences to a raster - all absences
+uncertrast <- terra::rasterize(as.matrix(modelbased_criterion[,1:2]), envdat[[1]], 
+                               values = modelbased_criterion$se.fit)
+plot(uncertrast)
+
+modcrit_dfsub <- modelbased_criterion[,c("x", "y", "se.fit")]
+
+uncertsf <- st_as_sf(modcrit_dfsub, coords = c("x", "y"), crs = 27700)
+
+uncertgrid <- st_make_grid(uncertsf$geometry, cellsize = 20000, square = FALSE)
+
+# order according to decreasing uncertainty - se.fit
+uncertsf <- uncertsf[order(uncertsf$se.fit,
+                           decreasing = TRUE), ]
+
+# plot
+plot(st_geometry(uncertrast), pch = 19)
+plot(uncertgrid, add = TRUE)
+plot(uncertrast[1,], col = "red", pch = 19, add = TRUE)
+
+uncertsftoedit <- uncertsf
+uncertoutdf <- data.frame()
+
+i <- 1
+while(i<750) {
+# for(i in 1:1000){
+  
+  print(i)
+  
+  # get the highest uncertainty point
+  highest_uncert <- uncertsftoedit[i,]
+  
+  # store that point
+  uncertoutdf <- rbind(uncertoutdf, highest_uncert)
+  
+  # find the grid cell it's in or if it touches one or more than one
+  highgridcellind <- st_within(highest_uncert, uncertgrid)
+  highgridcellind_touch <- st_touches(highest_uncert, uncertgrid)
+  
+  # combine two methods of selecting grid cell
+  highgridcellind <- c(unlist(highgridcellind), unlist(highgridcellind_touch))
+  
+  highgrid <- uncertgrid[c(highgridcellind)]
+  
+  # find all the points within that grid cell
+  points_contained <- unlist(st_contains(highgrid, uncertsf))
+  
+  # remove those points from the uncertainty dataframe 
+  uncertsftoedit <- uncertsftoedit[-points_contained,]
+  
+  i <- i+1
+}
+
+## top 750 uncertainty locations
+outdf
 
 ```
 
