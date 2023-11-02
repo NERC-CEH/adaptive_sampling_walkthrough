@@ -267,9 +267,6 @@ modcrit_dfsub <- modelbased_criterion[,c("x", "y", "se.fit")]
 # convert to sf
 uncertsf <- st_as_sf(modcrit_dfsub, coords = c("x", "y"), crs = 27700)
 
-# # make a grid over uncertainty layer
-# uncertgrid <- st_make_grid(uncertsf$geometry, cellsize = 20000, square = FALSE)
-
 # order the uncertainty layer according to decreasing uncertainty - se.fit
 uncertsf <- uncertsf[order(uncertsf$se.fit,
                            decreasing = TRUE), ]
@@ -310,7 +307,8 @@ while(i<751) {
   i <- i+1
 }
 
-plot(uncertrast)#, pch = 19)
+# plot
+plot(uncertrast)
 plot(uncertoutdf, col = "red", pch = 19, cex= 0.5, 
      add = TRUE)
 
