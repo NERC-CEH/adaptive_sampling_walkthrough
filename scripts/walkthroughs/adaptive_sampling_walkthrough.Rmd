@@ -250,12 +250,55 @@ plot(empirical_optimised_records, add = TRUE, pch = 19, cex = 0.5)
 
 ```
 
-should probably create a grid over the whole area and select the points from within each of those grid cells
+Select a random location and then remove all points within X distance of it.
+
+
+```{r}
+
+# convert empirical absences to sf
+emp_absences <- st_as_sf(emp_criterion_absences[,1:2], coords = c("x", "y"), crs = 27700)
+
+# save uncertainty layer into a new file that can have points removed
+emp_abs_sftoedit <- emp_absences
+empabsoutdf <- data.frame() # data frame for storage
+
+i <- 1
+while(i<751) {
+
+  if(i%%50==0) print(i)
+  
+  # sample a random point from all absences
+  sampled_point_ind <- sample(1:nrow(emp_abs_sftoedit), size = 1)
+  sampled_point <- emp_abs_sftoedit[sampled_point_ind,]
+  
+  # store that point
+  empabsoutdf <- rbind(empabsoutdf, sampled_point)
+  
+  # remove the highest point from the data frame
+  emp_abs_sftoedit <- emp_abs_sftoedit[-sampled_point_ind,]
+  
+  # find all points within x distance of highest uncert
+  absence_points_nearby <- unlist(st_is_within_distance(sampled_point, emp_abs_sftoedit,
+                                                   dist = 20000))
+  
+  if(length(absence_points_nearby)>0){
+    # remove those points from the uncertainty dataframe 
+    emp_abs_sftoedit <- emp_abs_sftoedit[-absence_points_nearby,]
+  }
+  
+  i <- i+1
+}
+
+
+```
+
+
+Model- based optimised
+
+Select the location with the highest uncertainty and then remove all points within X distance of it.
 
 
 ```{r model-based_optimised}
-
-## make grid over GB
 
 # covert model-based criterion absences to a raster - all absences
 uncertrast <- terra::rasterize(as.matrix(modelbased_criterion[,1:2]), envdat[[1]], 
@@ -270,11 +313,6 @@ uncertsf <- st_as_sf(modcrit_dfsub, coords = c("x", "y"), crs = 27700)
 # order the uncertainty layer according to decreasing uncertainty - se.fit
 uncertsf <- uncertsf[order(uncertsf$se.fit,
                            decreasing = TRUE), ]
-
-# plot
-plot(uncertrast)
-plot(uncertgrid, add = TRUE)
-plot(uncertsf_top, col = "red", pch = 19, add = TRUE)
 
 # save uncertainty layer into a new file that can have points removed
 uncertsftoedit <- uncertsf
@@ -296,12 +334,12 @@ while(i<751) {
   uncertsftoedit <- uncertsftoedit[-1,]
   
   # find all points within x distance of highest uncert
-  points_contained <- unlist(st_is_within_distance(highest_uncert, uncertsftoedit,
+  uncert_points_nearby <- unlist(st_is_within_distance(highest_uncert, uncertsftoedit,
                                                    dist = 20000))
   
-  if(length(points_contained)>0){
+  if(length(uncert_points_nearby)>0){
     # remove those points from the uncertainty dataframe 
-    uncertsftoedit <- uncertsftoedit[-points_contained,]
+    uncertsftoedit <- uncertsftoedit[-uncert_points_nearby,]
   }
   
   i <- i+1
