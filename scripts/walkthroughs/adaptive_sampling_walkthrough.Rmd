@@ -195,7 +195,15 @@ ggplot(modelbased_criterion, aes(x, y, fill = (se.fit))) +
 
 ## Step 2. Selection of new sampling occasions
 
-Important to choose the number of new locations versus number of batches. We're going to choose 750 observations
+```{r choose_nlocs_dist}
+
+nlocs <- 400
+dist_apart <- 20000
+
+```
+
+
+Important to choose the number of new locations versus number of batches. We're going to choose `r print(nlocs)` observations
 
 ### Step 2a. Optimised
 
@@ -212,7 +220,7 @@ samp <- spatSample(x = empabsr, size = 5000, xy = TRUE, na.rm = TRUE, method = "
 samp_sf <- st_as_sf(samp, coords = c("x", "y"), crs = 27700)
 
 # make a hexagonal grid over the sample - 20km 
-gdf <- st_make_grid(samp_sf$geometry, cellsize = 20000, square = FALSE)
+gdf <- st_make_grid(samp_sf$geometry, cellsize = dist_apart, square = FALSE)
 
 # loop through each grid cell and select a a single observation within each hexagonal grid
 outdf <- data.frame()
@@ -239,7 +247,7 @@ for(i in 1:length(gdf)) {
 }
 
 # select a random sample of 750 from these points - the desired number of locations
-final_sample_ind <- sample(1:nrow(outdf), size=750)
+final_sample_ind <- sample(1:nrow(outdf), size=nlocs)
 empirical_optimised_records <- outdf[final_sample_ind,]
 
 # plot
@@ -263,8 +271,8 @@ emp_abs_sftoedit <- emp_absences
 empabsoutdf <- data.frame() # data frame for storage
 
 i <- 1
-while(i<751) {
-
+while(i<=nlocs) {
+  
   if(i%%50==0) print(i)
   
   # sample a random point from all absences
@@ -279,16 +287,19 @@ while(i<751) {
   
   # find all points within x distance of highest uncert
   absence_points_nearby <- unlist(st_is_within_distance(sampled_point, emp_abs_sftoedit,
-                                                   dist = 20000))
+                                                        dist = dist_apart))
   
   if(length(absence_points_nearby)>0){
-    # remove those points from the uncertainty dataframe 
+    # remove those points from the absences dataframe 
     emp_abs_sftoedit <- emp_abs_sftoedit[-absence_points_nearby,]
   }
   
   i <- i+1
 }
 
+# plot
+plot(empabsr)
+plot(empabsoutdf, add = TRUE, pch = 19, cex = 0.5)
 
 ```
 
@@ -319,8 +330,8 @@ uncertsftoedit <- uncertsf
 uncertoutdf <- data.frame() # data frame for storage
 
 i <- 1
-while(i<751) {
-
+while(i<=nlocs) {
+  
   if(i%%50==0) print(i)
   
   # get the highest uncertainty point
@@ -335,7 +346,7 @@ while(i<751) {
   
   # find all points within x distance of highest uncert
   uncert_points_nearby <- unlist(st_is_within_distance(highest_uncert, uncertsftoedit,
-                                                   dist = 20000))
+                                                       dist = dist_apart))
   
   if(length(uncert_points_nearby)>0){
     # remove those points from the uncertainty dataframe 
