@@ -85,7 +85,7 @@ colnames(species_sampled_distrib_df) <- c('x', 'y', 'observations')
 # plot
 ggplot(species_sampled_distrib_df, aes(x,y, fill = factor(observations))) +
   geom_tile() +
-  scale_fill_manual(name = '', labels = c("No records", "Observation"),
+  scale_fill_manual(name = '', labels = c("Absences", "Observations"),
                     values = c("#E69F00", "#009E73")) +
   
   theme_bw()
@@ -201,7 +201,7 @@ ggplot(modelbased_criterion, aes(x, y, fill = (se.fit))) +
 ```{r choose_nlocs_dist}
 
 nlocs <- 400
-dist_apart <- 20000
+dist_apart <- 2000
 
 ```
 
@@ -252,8 +252,14 @@ while(i<=nlocs) {
 }
 
 # plot
-plot(empabsr)
-plot(empabsoutdf, add = TRUE, pch = 19, cex = 0.5)
+ggplot() +
+  geom_tile(data = species_sampled_distrib_df, aes(x,y, fill = factor(observations))) +
+  scale_fill_manual(name = '', labels = c("Absences", "Observations"),
+                    values = c("#E69F00", "#009E73")) +
+  geom_sf(data = empabsoutdf, size = 0.5, aes(colour = "New recording\nlocations")) +
+  scale_colour_manual(name = "", values = "black") +
+  
+  theme_bw()
 
 ```
 
@@ -264,9 +270,9 @@ We will select the location that has the highest model uncertainty. We will then
 
 ```{r model-based_optimised}
 
-# covert model-based criterion absences to a raster - all absences
-uncertrast <- terra::rasterize(as.matrix(modelbased_criterion[,1:2]), envdat[[1]], 
-                               values = modelbased_criterion$se.fit)
+# # covert model-based criterion absences to a raster - all absences
+# uncertrast <- terra::rasterize(as.matrix(modelbased_criterion[,1:2]), envdat[[1]], 
+#                                values = modelbased_criterion$se.fit)
 
 # get only uncertainty and coordinates from model based criterion
 modcrit_dfsub <- modelbased_criterion[,c("x", "y", "se.fit")]
@@ -310,14 +316,23 @@ while(i<=nlocs) {
 }
 
 # plot
-plot(uncertrast)
-plot(uncertoutdf, col = "red", pch = 19, cex= 0.5, 
-     add = TRUE)
+ggplot() +
+  geom_tile(data = modelbased_criterion, aes(x, y, fill = se.fit)) +
+  scale_fill_viridis_c(name = "Standard error") +
+  geom_sf(data = uncertoutdf, size = 0.5, aes(colour = "New recording\nlocations")) +
+  scale_colour_manual(name = "", values = "grey") +
+  
+  theme_bw()
+
 
 ```
 
 
 ### Step 2b. Independent draws
+
+#### Empirical
+
+Randomly sample from all unvisited locations without replacement.
 
 ```{r empirical_independent_draws}
 
@@ -327,24 +342,24 @@ emp_critind <- sample(1:nrow(emp_criterion_absences), nlocs) ## how many new loc
 # New locations visited
 emp_indepdraw_new_locs <- emp_criterion_absences[emp_critind,]
 
-# plot against true distribution
+# plot
 ggplot() +
-  geom_tile(data = species_distrib_df, aes(x,y, fill = factor(presence))) +
-  geom_point(data = species_records, aes(x,y, colour = "original records"), size = 0.5) +
+  geom_tile(data = species_sampled_distrib_df, aes(x,y, fill = factor(observations))) +
+  # geom_point(data = species_records, aes(x,y, colour = "original records"), size = 0.5) +
   geom_point(data = emp_indepdraw_new_locs, aes(x,y, colour = "new visits"), size = 0.5) +
   scale_colour_manual(values = c("blue", "green"), name = "") +
-  scale_fill_manual(name = '', labels = c("Absent", "Present"),
+  scale_fill_manual(name = '', labels = c("Absences", "Observations"),
                     values = c("#E69F00", "#009E73")) +
   
   theme_bw()
 
 ```
 
-Pick the 750 locations with the highest uncertainty
+#### Model-based
+
+Select the 750 locations with the highest uncertainty
 
 ```{r model-based_independent_draws}
-
-head(modelbased_criterion)
 
 sorted_data <- modelbased_criterion[order(modelbased_criterion$se.fit,
                                           decreasing = TRUE), ]
@@ -356,7 +371,7 @@ ggplot() +
   geom_tile(data=modelbased_criterion, aes(x, y, fill = (se.fit))) +
   geom_point(data=top_uncert, aes(x,y, colour = "new visits"), size = 0.5) +
   scale_fill_viridis_c(name = "Standard error") +
-  scale_colour_manual(name = "", values = "orange") +
+  scale_colour_manual(name = "", values = "grey") +
   
   theme_bw()
 
