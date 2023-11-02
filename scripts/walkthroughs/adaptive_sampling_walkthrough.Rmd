@@ -23,8 +23,8 @@ envdat <- rast('../../data/environmental_data_subset.tif')
 
 # true species distribution
 species_distrib_rast <- rast('../../outputs/simulated_data/true_species_distribution.tif')
-species_distrib_df <- as.data.frame(species_distrib_rast, xy=TRUE)
-colnames(species_distrib_df) <- c("x", "y", "presence")
+true_species_distrib_df <- as.data.frame(species_distrib_rast, xy=TRUE)
+colnames(true_species_distrib_df) <- c("x", "y", "presence")
 
 ```
 
@@ -77,20 +77,22 @@ species_rast <- rasterize(x = as.matrix(species_records[,1:2]), y = envdat[[1]],
                           values = 1, background = 0)
 species_rast_gb <- mask(species_rast, envdat[["elev"]]) # mask to GB
 
-# Unvisited locations are any 0s!
-emp_criterion_absences <- empirical_criterion[empirical_criterion$observations == 0,]
-
 ## visualise
-empirical_criterion <- as.data.frame(species_rast_gb, xy = TRUE)
-colnames(empirical_criterion) <- c('x', 'y', 'observations')
+species_sampled_distrib_df <- as.data.frame(species_rast_gb, xy = TRUE)
+colnames(species_sampled_distrib_df) <- c('x', 'y', 'observations')
 # head(empirical_df)
 
-ggplot(empirical_criterion, aes(x,y, fill = factor(observations))) +
+# plot
+ggplot(species_sampled_distrib_df, aes(x,y, fill = factor(observations))) +
   geom_tile() +
   scale_fill_manual(name = '', labels = c("No records", "Observation"),
                     values = c("#E69F00", "#009E73")) +
   
   theme_bw()
+
+# Unvisited locations are any 0s!
+emp_criterion_absences <- species_sampled_distrib_df[species_sampled_distrib_df$observations == 0,]
+
 
 ```
 
@@ -106,13 +108,14 @@ A key consideration in SDM of presence-only data is the choice of method to get 
 ```{r pseudoabsences}
 
 # get all locations with no records
-no_records <- empirical_criterion[empirical_criterion$observations==0,]
+no_records <- species_sampled_distrib_df[species_sampled_distrib_df$observations==0,]
 
 # randomly sample
-psedoabs_index <- sample(1:nrow(no_records), size = sum(empirical_criterion$observations==1))
+psedoabs_index <- sample(1:nrow(emp_criterion_absences), 
+                         size = sum(species_sampled_distrib_df$observations==1))
 
 # extract pseudoabsences
-pseudoabs <- no_records[psedoabs_index,]
+pseudoabs <- emp_criterion_absences[psedoabs_index,]
 
 # bind to observations
 speciesobs_df <- rbind(species_records, pseudoabs)
@@ -319,7 +322,7 @@ plot(uncertoutdf, col = "red", pch = 19, cex= 0.5,
 ```{r empirical_independent_draws}
 
 # unvisited areas
-emp_critind <- sample(1:nrow(emp_criterion_absences), 750) ## how many new locations are visited
+emp_critind <- sample(1:nrow(emp_criterion_absences), nlocs) ## how many new locations are visited
 
 # New locations visited
 emp_indepdraw_new_locs <- emp_criterion_absences[emp_critind,]
@@ -346,7 +349,7 @@ head(modelbased_criterion)
 sorted_data <- modelbased_criterion[order(modelbased_criterion$se.fit,
                                           decreasing = TRUE), ]
 
-top_uncert <- sorted_data[1:750, c("x", "y")]
+top_uncert <- sorted_data[1:nlocs, c("x", "y")]
 
 # standard error + top error
 ggplot() +
