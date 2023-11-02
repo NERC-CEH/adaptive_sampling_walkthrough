@@ -207,61 +207,12 @@ Important to choose the number of new locations versus number of batches. We're 
 
 ### Step 2a. Optimised
 
-To do this, we are going to do a form of distance sampling. We create a 20km grid over the whole of GB and then sample a single point from within each of these grid cells. 
+#### Empirical method
+
+To do this, we will select a random location from all of the places that haven't already been visited (i.e. the empricial criterion). We will then remove all other unvisited locations within `r print(dist_apart)`m of it, and sample another point. This will be done until `r print(nlocs)` have been sampled.
 
 
 ```{r empirical_optimised}
-
-# covert empriical criterion absences to a raster - all absences
-empabsr <- terra::rasterize(as.matrix(emp_criterion_absences[,1:2]), envdat[[1]])
-
-# sample many points from this raster
-samp <- spatSample(x = empabsr, size = 5000, xy = TRUE, na.rm = TRUE, method = "random")
-samp_sf <- st_as_sf(samp, coords = c("x", "y"), crs = 27700)
-
-# make a hexagonal grid over the sample - 20km 
-gdf <- st_make_grid(samp_sf$geometry, cellsize = dist_apart, square = FALSE)
-
-# loop through each grid cell and select a a single observation within each hexagonal grid
-outdf <- data.frame()
-
-for(i in 1:length(gdf)) {
-  
-  if(i%%100==0) print(i)
-  
-  # check if grid cell contains anything
-  polyofinterest <- st_contains(gdf[i], samp_sf, sparse = FALSE)
-  
-  # if nothing skip to next one
-  if(sum(polyofinterest)==0) next
-  
-  # get the points within the polygon
-  points_within <- st_filter(samp_sf, gdf[i])
-  
-  # randomly sample one from the two
-  pw_ind <- sample(1:nrow(points_within), size = 1)
-  
-  # store the point in the output dataframe
-  outdf <- rbind(outdf, points_within[pw_ind,])
-  
-}
-
-# select a random sample of 750 from these points - the desired number of locations
-final_sample_ind <- sample(1:nrow(outdf), size=nlocs)
-empirical_optimised_records <- outdf[final_sample_ind,]
-
-# plot
-plot(empabsr)
-plot(gdf, add = TRUE)
-plot(empirical_optimised_records, add = TRUE, pch = 19, cex = 0.5)
-
-
-```
-
-Select a random location and then remove all points within X distance of it.
-
-
-```{r}
 
 # convert empirical absences to sf
 emp_absences <- st_as_sf(emp_criterion_absences[,1:2], coords = c("x", "y"), crs = 27700)
@@ -304,10 +255,9 @@ plot(empabsoutdf, add = TRUE, pch = 19, cex = 0.5)
 ```
 
 
-Model- based optimised
+#### Model-based optimised
 
-Select the location with the highest uncertainty and then remove all points within X distance of it.
-
+We will select the location that has the highest model uncertainty. We will then remove all other unvisited locations within `r print(dist_apart)`m of it. Then we sample the location with the next highest uncertainty and repeat until `r print(nlocs)` have been sampled.
 
 ```{r model-based_optimised}
 
