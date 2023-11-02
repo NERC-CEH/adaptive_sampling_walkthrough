@@ -272,50 +272,80 @@ uncertgrid <- st_make_grid(uncertsf$geometry, cellsize = 20000, square = FALSE)
 uncertsf <- uncertsf[order(uncertsf$se.fit,
                            decreasing = TRUE), ]
 
-# plot
-plot(st_geometry(uncertrast), pch = 19)
-plot(uncertgrid, add = TRUE)
-plot(uncertrast[1,], col = "red", pch = 19, add = TRUE)
+# select the top 1000
+uncertsf_top <- uncertsf#[1:100000,]
 
-uncertsftoedit <- uncertsf
+# plot
+plot(uncertrast)
+plot(uncertgrid, add = TRUE)
+plot(uncertsf_top, col = "red", pch = 19, add = TRUE)
+
+uncertsftoedit <- uncertsf_top
 uncertoutdf <- data.frame()
 
 i <- 1
-while(i<750) {
-# for(i in 1:1000){
+while(i<751) {
+  # for(i in 1:1000){
   
   if(i%%50==0) print(i)
   
   # get the highest uncertainty point
-  highest_uncert <- uncertsftoedit[i,]
+  highest_uncert <- uncertsftoedit[1,]
+  # print(highest_uncert)
   
   # store that point
   uncertoutdf <- rbind(uncertoutdf, highest_uncert)
   
-  # find the grid cell it's in or if it touches one or more than one
-  highgridcellind <- st_within(highest_uncert, uncertgrid)
-  highgridcellind_touch <- st_touches(highest_uncert, uncertgrid)
+  # remove the highest point from the data frame
+  uncertsftoedit <- uncertsftoedit[-1,]
   
-  # combine two methods of selecting grid cell
-  highgridcellind <- c(unlist(highgridcellind), unlist(highgridcellind_touch))
+  # # find the grid cell(s) the highest point is in or if it touches one or 
+  # # all if it touches more than one grid
+  # highgridcellind <- st_within(highest_uncert, uncertgrid)
+  # highgridcellind_touch <- st_touches(highest_uncert, uncertgrid)
+  # highgridcellind_intersects <- st_intersects(highest_uncert, uncertgrid)
+  # highgridcellind_cross <- st_crosses(highest_uncert, uncertgrid)
+  # highgridcellind_overlap <- st_overlaps(highest_uncert, uncertgrid)
+  # highgridcellind_covered <- st_covered_by(highest_uncert, uncertgrid)
+  # 
+  # # combine two methods of selecting grid cell
+  # highgridcellind <- unique(c(unlist(highgridcellind), unlist(highgridcellind_touch),
+  #                             unlist(highgridcellind_intersects), unlist(highgridcellind_cross),
+  #                             unlist(highgridcellind_overlap), unlist(highgridcellind_covered)))
+  # 
+  # # the grid with the highest uncertainty in it
+  # highgrid <- uncertgrid[c(highgridcellind)]
+  # 
+  # # find all other points within that grid cell
+  # points_contained <- unlist(st_contains(highgrid, uncertsftoedit))
   
-  highgrid <- uncertgrid[c(highgridcellind)]
+  # find all points within x distance of highest uncert
+  points_contained <- unlist(st_is_within_distance(highest_uncert, uncertsftoedit,
+                                                   dist = 20000))
   
-  # find all the points within that grid cell
-  points_contained <- unlist(st_contains(highgrid, uncertsf))
-  
-  # remove those points from the uncertainty dataframe 
-  uncertsftoedit <- uncertsftoedit[-points_contained,]
+  if(length(points_contained)>0){
+    # remove those points from the uncertainty dataframe 
+    uncertsftoedit <- uncertsftoedit[-points_contained,]
+  }
   
   i <- i+1
 }
 
-## top 750 uncertainty locations
 
 plot(uncertrast)#, pch = 19)
-plot(uncertgrid, add = TRUE)
-plot(outdf, col = "red", pch = 19, cex= 0.5, 
+# plot(uncertgrid, add = TRUE)
+plot(uncertoutdf, col = "red", pch = 19, cex= 0.5, 
      add = TRUE)
+
+## top 750 uncertainty locations
+plot(uncertrast)#, pch = 19)
+plot(highgrid, add = TRUE)
+plot(uncertsftoedit[points_contained,], col = 'black', add = TRUE, pch = 19, cex = 0.5)
+plot(highest_uncert, col = "red", add = TRUE, pch = 19, cex = 0.5)
+plot(highgrid, add = TRUE)
+plot(uncertsftoedit, col = "yellow", add = TRUE, pch = 19, cex = 0.5)
+
+
 ### has it worked?!?!
 
 ```
