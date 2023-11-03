@@ -29,6 +29,17 @@ colnames(true_species_distrib_df) <- c("x", "y", "presence")
 ```
 
 
+```{r choose_nlocs_dist}
+
+# choose number of new locations to sample and distance between them
+nlocs <- 400
+dist_apart <- 10000
+
+write = TRUE
+
+```
+
+
 # Introduction
 
 This R notebook accompanies figure XX in the paper 'Adaptive sampling in ecology: current practice and future opportunities'. Here, we aim to demonstrate how adaptive sampling can be used in an ecological setting. For this, we take the case of species distribution models, where we are aiming to improve our knowledge of species' distributions.
@@ -73,22 +84,33 @@ An empirical criterion involves using only the data to determine locations for f
 ```{r empirical}
 
 # convert species records to raster
-species_rast <- rasterize(x = as.matrix(species_records[,1:2]), y = envdat[[1]], 
+species_rast <- rasterize(x = as.matrix(species_records[,1:2]), y = envdat[["elev"]], 
                           values = 1, background = 0)
 species_rast_gb <- mask(species_rast, envdat[["elev"]]) # mask to GB
 
 ## visualise
 species_sampled_distrib_df <- as.data.frame(species_rast_gb, xy = TRUE)
 colnames(species_sampled_distrib_df) <- c('x', 'y', 'observations')
-# head(empirical_df)
 
 # plot
-ggplot(species_sampled_distrib_df, aes(x,y, fill = factor(observations))) +
-  geom_tile() +
-  scale_fill_manual(name = '', labels = c("Absences", "Observations"),
+obssp_dsitrib <- ggplot(species_sampled_distrib_df, 
+                     aes(x,y, fill = factor(observations))) +
+  geom_raster() +
+  scale_fill_manual(name = "Observed species\ndistribution", 
+                    labels = c("No records", "Records"),
                     values = c("#E69F00", "#009E73")) +
   
-  theme_bw()
+  theme_void() +
+  theme(text = element_text(size = 20))
+obssp_dsitrib
+
+if(write) {
+  
+  ggsave(obssp_dsitrib, 
+         file = "../../outputs/plots/empirical_criterion.png",
+         height = 6, width = 5)
+  
+}
 
 # Unvisited locations are any 0s!
 emp_criterion_absences <- species_sampled_distrib_df[species_sampled_distrib_df$observations == 0,]
@@ -101,14 +123,11 @@ emp_criterion_absences <- species_sampled_distrib_df[species_sampled_distrib_df$
 
 In a model-based adaptive sampling criterion, further sampling is based on some aspect of a model. Here, we will model the species distribution as a function of several environmental variables using GAMs. Then we will use the standard error as our measure of uncertainty on which to base further sampling. 
 
-### Pseudoabsences
+#### Pseudoabsences
 
-A key consideration in SDM of presence-only data is the choice of method to get pseudoabsences. This requires careful thought but here, we choose to use a random background approach as we are not interested in its effect on model performance. We will use the layer above to generate an equal number of pseudoabsences to the number of presences.
+A key consideration in SDM of presence-only data is the choice of method to get pseudoabsences. For simplicity, here we choose to use a random background approach as we are not interested in its effect on model performance. We will randomly sample the same number of points as there were presences from all of the locations which do not already have records.
 
 ```{r pseudoabsences}
-
-# get all locations with no records
-no_records <- species_sampled_distrib_df[species_sampled_distrib_df$observations==0,]
 
 # randomly sample
 psedoabs_index <- sample(1:nrow(emp_criterion_absences), 
@@ -132,7 +151,7 @@ ggplot(speciesobs_df, aes(x, y, col = factor(observations))) +
 
 #### Modelling
 
-Model data and predict for GB
+The presences and pseudoabsences are then used to run a binomial GAM. We model this with three explanatory variables, the percentage of improved grassland, the elevation and the annual mean temperature. From this model we can then plot the prediction and the standard error back onto GB. The standard error is the model-based sampling metric that we will use to determine subsequent sampling. Targetting regions of high model uncertainty could be valuable for improving model performance.   
 
 ```{r modelling}
 
@@ -143,7 +162,7 @@ Model data and predict for GB
 recsdf <- cbind(speciesobs_df, 
                 terra::extract(envdat, speciesobs_df[1:2], 
                                xy = FALSE, method = "simple"))
-head(recsdf)
+# head(recsdf)
 
 # model - simple model with few explanatory variables
 gammod <- gam(observations ~ s(impr_grass) +
@@ -152,7 +171,7 @@ gammod <- gam(observations ~ s(impr_grass) +
               family = 'binomial',
               data = recsdf)
 summary(gammod)
-plot(gammod)
+# plot(gammod)
 
 # convert environmental raster to data frame
 edatdf <- as.data.frame(envdat[[c("impr_grass", "elev", "bio_1")]],
@@ -176,6 +195,8 @@ modelbased_criterion <- na.omit(cbind(newx, newy))
 
 #### Extracting uncertainty
 
+This is simply done by predicting the standard error for all of GB.
+
 ```{r standard error}
 
 # probability of presences
@@ -186,11 +207,22 @@ ggplot(modelbased_criterion, aes(x, y, fill = fit)) +
   theme_bw()
 
 # standard error 
-ggplot(modelbased_criterion, aes(x, y, fill = (se.fit))) +
-  geom_tile() +
+model_based_crit_plot <- ggplot(modelbased_criterion, 
+                                aes(x, y, fill = (se.fit))) +
+  geom_raster() +
   scale_fill_viridis_c(name = "Standard error") +
   
-  theme_bw()
+  theme_void() +
+  theme(text = element_text(size = 20))
+model_based_crit_plot
+
+if(write) {
+  
+  ggsave(model_based_crit_plot, 
+         file = "../../outputs/plots/modelbased_criterion.png",
+         height = 6, width = 5)
+  
+}
 
 
 ```
@@ -198,19 +230,11 @@ ggplot(modelbased_criterion, aes(x, y, fill = (se.fit))) +
 
 ## Step 2. Selection of new sampling occasions
 
-```{r choose_nlocs_dist}
-
-nlocs <- 400
-dist_apart <- 2000
-
-```
-
-
 Important to choose the number of new locations versus number of batches. We're going to choose `r print(nlocs)` observations
 
 ### Step 2a. Optimised
 
-#### Empirical method
+#### Empirical method - optimised
 
 To do this, we will select a random location from all of the places that haven't already been visited (i.e. the empricial criterion). We will then remove all other unvisited locations within `r print(dist_apart)`m of it, and sample another point. This will be done until `r print(nlocs)` have been sampled.
 
@@ -227,7 +251,7 @@ empabsoutdf <- data.frame() # data frame for storage
 i <- 1
 while(i<=nlocs) {
   
-  if(i%%50==0) print(i)
+  # if(i%%50==0) print(i)
   
   # sample a random point from all absences
   sampled_point_ind <- sample(1:nrow(emp_abs_sftoedit), size = 1)
@@ -264,15 +288,11 @@ ggplot() +
 ```
 
 
-#### Model-based optimised
+#### Model-based - optimised
 
 We will select the location that has the highest model uncertainty. We will then remove all other unvisited locations within `r print(dist_apart)`m of it. Then we sample the location with the next highest uncertainty and repeat until `r print(nlocs)` have been sampled.
 
 ```{r model-based_optimised}
-
-# # covert model-based criterion absences to a raster - all absences
-# uncertrast <- terra::rasterize(as.matrix(modelbased_criterion[,1:2]), envdat[[1]], 
-#                                values = modelbased_criterion$se.fit)
 
 # get only uncertainty and coordinates from model based criterion
 modcrit_dfsub <- modelbased_criterion[,c("x", "y", "se.fit")]
@@ -291,7 +311,7 @@ uncertoutdf <- data.frame() # data frame for storage
 i <- 1
 while(i<=nlocs) {
   
-  if(i%%50==0) print(i)
+  # if(i%%50==0) print(i)
   
   # get the highest uncertainty point
   highest_uncert <- uncertsftoedit[1,]
@@ -319,7 +339,7 @@ while(i<=nlocs) {
 ggplot() +
   geom_tile(data = modelbased_criterion, aes(x, y, fill = se.fit)) +
   scale_fill_viridis_c(name = "Standard error") +
-  geom_sf(data = uncertoutdf, size = 0.5, aes(colour = "New recording\nlocations")) +
+  geom_sf(data = uncertoutdf, size = 0.6, aes(colour = "New recording\nlocations")) +
   scale_colour_manual(name = "", values = "grey") +
   
   theme_bw()
@@ -330,7 +350,7 @@ ggplot() +
 
 ### Step 2b. Independent draws
 
-#### Empirical
+#### Empirical independent draws
 
 Randomly sample from all unvisited locations without replacement.
 
@@ -355,7 +375,7 @@ ggplot() +
 
 ```
 
-#### Model-based
+#### Model-based indpendent draws
 
 Select the 750 locations with the highest uncertainty
 
@@ -379,7 +399,7 @@ ggplot() +
 ```
 
 
-
+### Step 3. Rounds vs batches
 
 need to compare against the true species distribution to see whether new observations are made --- Maybe next step because it's not technically part of the adaptive sampling process (Maybe in the rounds vs batches section)
 
