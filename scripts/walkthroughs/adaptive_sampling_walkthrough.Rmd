@@ -94,21 +94,22 @@ colnames(species_sampled_distrib_df) <- c('x', 'y', 'observations')
 
 # plot
 obssp_dsitrib <- ggplot(species_sampled_distrib_df, 
-                     aes(x,y, fill = factor(observations))) +
+                        aes(x,y, fill = factor(observations))) +
   geom_raster() +
-  scale_fill_manual(name = "Observed species\ndistribution", 
+  scale_fill_manual(name = "", 
                     labels = c("No records", "Records"),
                     values = c("#E69F00", "#009E73")) +
+  coord_sf(crs = 27700) +
   
   theme_void() +
-  theme(text = element_text(size = 20))
+  theme(text = element_text(size = 30))
 obssp_dsitrib
 
 if(write) {
   
   ggsave(obssp_dsitrib, 
          file = "../../outputs/plots/empirical_criterion.png",
-         height = 6, width = 5)
+         height = 6,width = 5)
   
 }
 
@@ -210,17 +211,21 @@ ggplot(modelbased_criterion, aes(x, y, fill = fit)) +
 model_based_crit_plot <- ggplot(modelbased_criterion, 
                                 aes(x, y, fill = (se.fit))) +
   geom_raster() +
-  scale_fill_viridis_c(name = "Standard error") +
+  scale_fill_viridis(name = "Standard\nerror", 
+                     begin = 0.1,
+                     labels = c("Low", "High"),
+                     breaks = c(0.9e-2, 0.120)) +
+  coord_sf(crs = 27700) +
   
   theme_void() +
-  theme(text = element_text(size = 20))
+  theme(text = element_text(size = 30))
 model_based_crit_plot
 
 if(write) {
   
   ggsave(model_based_crit_plot, 
          file = "../../outputs/plots/modelbased_criterion.png",
-         height = 6, width = 5)
+         height = 6,width = 5)
   
 }
 
@@ -276,14 +281,28 @@ while(i<=nlocs) {
 }
 
 # plot
-ggplot() +
-  geom_tile(data = species_sampled_distrib_df, aes(x,y, fill = factor(observations))) +
+emp_optim <- ggplot() +
+  geom_raster(data = species_sampled_distrib_df, aes(x,y, fill = factor(observations))) +
   scale_fill_manual(name = '', labels = c("Absences", "Observations"),
                     values = c("#E69F00", "#009E73")) +
-  geom_sf(data = empabsoutdf, size = 0.5, aes(colour = "New recording\nlocations")) +
-  scale_colour_manual(name = "", values = "black") +
+  geom_sf(data = empabsoutdf, aes(colour = "New recording\nlocations")) +
+  coord_sf(expand = FALSE) +
+  scale_colour_manual(name = "", values = "white") +
+  ylim(0, 350000) +
   
-  theme_bw()
+  theme_void() +
+  theme(text = element_text(size = 25)) +
+  guides(fill = "none", colour = "none")
+emp_optim
+
+if(write) {
+  
+  ggsave(emp_optim, 
+         file = "../../outputs/plots/emp_optim_selection.png",
+         height = 6,width = 5)
+  
+}
+
 
 ```
 
@@ -336,14 +355,26 @@ while(i<=nlocs) {
 }
 
 # plot
-ggplot() +
-  geom_tile(data = modelbased_criterion, aes(x, y, fill = se.fit)) +
-  scale_fill_viridis_c(name = "Standard error") +
-  geom_sf(data = uncertoutdf, size = 0.6, aes(colour = "New recording\nlocations")) +
-  scale_colour_manual(name = "", values = "grey") +
+model_optim <- ggplot() +
+  geom_raster(data = modelbased_criterion, aes(x, y, fill = se.fit)) +
+  scale_fill_viridis_c(name = "Standard error", begin = 0.1) +
+  geom_sf(data = uncertoutdf, aes(colour = "New recording\nlocations")) +
+  coord_sf(expand = FALSE) +
+  scale_colour_manual(name = "", values = "white") +
+  ylim(0, 350000) +
   
-  theme_bw()
+  theme_void() +
+  theme(text = element_text(size = 25)) +
+  guides(fill = "none", colour = "none")
+model_optim
 
+if(write) {
+  
+  ggsave(model_optim, 
+         file = "../../outputs/plots/modelbased_optim_selection.png",
+         height = 6,width = 5)
+  
+}
 
 ```
 
@@ -360,18 +391,33 @@ Randomly sample from all unvisited locations without replacement.
 emp_critind <- sample(1:nrow(emp_criterion_absences), nlocs) ## how many new locations are visited
 
 # New locations visited
-emp_indepdraw_new_locs <- emp_criterion_absences[emp_critind,]
+emp_indepdraw_new_locs <- st_as_sf(emp_criterion_absences[emp_critind,], 
+                                   coords = c("x", "y"), crs = 27700)
 
 # plot
-ggplot() +
-  geom_tile(data = species_sampled_distrib_df, aes(x,y, fill = factor(observations))) +
+empindep_draws <- ggplot() +
+  geom_raster(data = species_sampled_distrib_df, aes(x,y, fill = factor(observations))) +
   # geom_point(data = species_records, aes(x,y, colour = "original records"), size = 0.5) +
-  geom_point(data = emp_indepdraw_new_locs, aes(x,y, colour = "new visits"), size = 0.5) +
-  scale_colour_manual(values = c("blue", "green"), name = "") +
+  geom_sf(data = emp_indepdraw_new_locs, 
+          aes(colour = "New recording\nlocations")) +
+  coord_sf(expand = FALSE) +
+  scale_colour_manual(values = c("white"), name = "") +
   scale_fill_manual(name = '', labels = c("Absences", "Observations"),
                     values = c("#E69F00", "#009E73")) +
+  ylim(0, 350000) +
   
-  theme_bw()
+  theme_void() +
+  theme(text = element_text(size = 25)) +
+  guides(fill = "none", colour = "none")
+empindep_draws
+
+if(write) {
+  
+  ggsave(empindep_draws, 
+         file = "../../outputs/plots/empirical_indep_selection.png",
+         height = 6,width = 5)
+  
+}
 
 ```
 
@@ -384,22 +430,103 @@ Select the 750 locations with the highest uncertainty
 sorted_data <- modelbased_criterion[order(modelbased_criterion$se.fit,
                                           decreasing = TRUE), ]
 
-top_uncert <- sorted_data[1:nlocs, c("x", "y")]
+top_uncert <- st_as_sf(sorted_data[1:nlocs, c("x", "y")], 
+                       coords = c("x", "y"), crs = 27700)
 
 # standard error + top error
-ggplot() +
-  geom_tile(data=modelbased_criterion, aes(x, y, fill = (se.fit))) +
-  geom_point(data=top_uncert, aes(x,y, colour = "new visits"), size = 0.5) +
-  scale_fill_viridis_c(name = "Standard error") +
-  scale_colour_manual(name = "", values = "grey") +
+model_indep <- ggplot() +
+  geom_raster(data=modelbased_criterion, aes(x, y, fill = (se.fit))) +
+  geom_sf(data=top_uncert, aes(colour = "New recording\nlocations")) +
+  coord_sf(expand = FALSE) +
+  scale_fill_viridis_c(name = "Standard error", begin = 0.1) +
+  scale_colour_manual(name = "", values = "white") +
+  ylim(0, 350000) +
   
-  theme_bw()
+  theme_void() +
+  theme(text = element_text(size = 25)) +
+  guides(fill = "none", colour = "none")
+model_indep
 
+if(write) {
+  
+  ggsave(model_indep, 
+         file = "../../outputs/plots/model_indep_selection.png",
+         height = 6, width = 5)
+  
+}
 
 ```
 
 
 ### Step 3. Rounds vs batches
 
-need to compare against the true species distribution to see whether new observations are made --- Maybe next step because it's not technically part of the adaptive sampling process (Maybe in the rounds vs batches section)
+In adaptive sampling there will be a decision to make about the number of rounds of adaptive sampling and how many points to sample at each time point. For example, if data collection involved a lot of organisation and a trip overseas, it might be that a single collection incident is logistically possible. In other cases, it might be that we are able to carry out sampling over several field seasons, with the criterion layer recalculated at each step.
+
+
+#### the easy way:
+
+Only temporary - need to code the different batches and rerunning the model each time when I have the energy
+
+```{r}
+
+library(patchwork)
+
+batches <- sample(1:4, size = nrow(uncertoutdf), replace = TRUE)
+
+batched_data <- cbind(uncertoutdf, batches)
+
+head(batched_data)
+
+# plot
+model_optim <- ggplot() +
+  geom_raster(data = modelbased_criterion, aes(x, y, fill = se.fit)) +
+  scale_fill_viridis_c(name = "Standard error", begin = 0.1) +
+  geom_sf(data = batched_data, aes(colour = factor(batches))) +
+  coord_sf(expand = FALSE) +
+  scale_colour_manual(name = "", values = c("black", "white", "red", "orange")) +
+  ylim(0, 350000) +
+  
+  theme_void() +
+  theme(text = element_text(size = 25)) +
+  guides(fill = "none", colour = "none") +
+  facet_wrap(~batches, ncol = 4)
+model_optim
+
+
+
+```
+
+
+
+#### the complicated way:
+
+Here we show how this is possible. Using four batches of 100
+
+```{r}
+
+head(speciesobs_df)
+
+head(uncertsf)
+
+nlocs/4 # 4
+
+
+## optimise sampling for 100 locations
+batch <- optimise_sampling_uncertainty(uncertainty_dataframe = uncertsf,
+                                       number_locactions = nlocs/4)
+head(batch)
+
+plot(species_distrib_rast)
+
+## check whether they find new records
+new_locs <- check_distrib(new_records = terra::vect(batch), true_species_distrib = species_distrib_rast) 
+
+head(species_sampled_distrib_df)
+
+#
+
+## bind to initial data
+all_records
+
+```
 
