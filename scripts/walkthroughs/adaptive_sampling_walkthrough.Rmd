@@ -509,10 +509,23 @@ nlocs/nbatches # 4
 # uncertainty layer from first model
 modelbased_crit_sf <- uncertsf
 
-# the species records to be updated each time
-species_observations <- species_records
-head(species_observations)
+# the initial species records
+initial_species_records <- species_records
+head(initial_species_records)
 
+# distance between records to maintain
+distance_apart <- dist_apart
+
+
+
+
+
+# convert initial points to sf object
+initial_species_records_sf <- st_as_sf(initial_species_records[,c("x", "y")], 
+                                       coords = c("x", "y"), 
+                                       crs = 27700)
+
+# output data frames
 new_species_observations <- data.frame()
 modeluncertainty_out <- data_frame()
 
@@ -520,6 +533,30 @@ modeluncertainty_out <- data_frame()
 for(batch_num in 1:nbatches) {
   
   print(paste("Batch", batch_num))
+  
+  #### remove sampling occasions close to existing records (from adaptive sampling)
+  # ideally would include the old locations too but would take AGES to run.
+  if(batch_num>1){
+    print(paste("Removing potential sampling occasions within", distance_apart, "m of previous adaptively sampled records"))
+    
+    # convert new records to sf
+    new_species_observations_sf <- st_as_sf(new_species_observations[,c("x", "y")], 
+                                            coords = c("x", "y"), 
+                                            crs = 27700)
+    # find all points within x distance of highest uncert
+    points_within_dist <- unlist(st_is_within_distance(new_species_observations_sf, 
+                                                       modelbased_crit_sf,
+                                                       dist = distance_apart))
+    
+    if(length(points_within_dist)>0){
+      # remove those points from the uncertainty dataframe 
+      modelbased_crit_sf <- modelbased_crit_sf[-points_within_dist,]
+    }
+    
+    # # bind to initial points
+    # initial_species_records_sf <- rbind(initial_species_records_sf, new_species_observations_sf)
+  }
+  
   
   #### Get new sampling occasions
   print(paste("Getting sampling occasions"))
@@ -543,11 +580,10 @@ for(batch_num in 1:nbatches) {
   print(paste("Preparing for modelling"))
   {
     ## bind to initial data
-    all_records <- rbind(species_observations[,1:2], new_species_observations[, c("x", "y")])
+    all_records <- rbind(initial_species_records[,1:2], 
+                         new_species_observations[, c("x", "y")])
     
-    ## remove duplicates
-    print(paste(sum(duplicated(all_records)), "were removed.", 
-                round(nlocs/nbatches)-sum(duplicated(all_records)), "remain for modelling."))
+    ## remove duplicates for modelling
     all_records <- all_records[!duplicated(all_records),]
     
     ## add observations column
@@ -597,9 +633,6 @@ for(batch_num in 1:nbatches) {
 ```{r}
 
 
-ggplot() +
-  geom_point(data = new_species_observations, aes(x, y)) +
-  facet_wrap(~batch)
 
 # plot
 model_optim <- ggplot() +
@@ -615,6 +648,12 @@ model_optim <- ggplot() +
   guides(fill = "none", colour = "none") +
   facet_wrap(~batch, ncol = 2)
 model_optim
+
+ggplot(modeluncertainty_out, aes(x,y, fill = se.fit)) +
+  geom_tile() +
+  ylim(250000, 350000) +
+  xlim(300000, 400000) +
+  facet_wrap(~batch)
 
 ```
 
