@@ -5,7 +5,7 @@
 find_empirical_absences <- function(recordsdf, templaterast) {
   
   # convert species records to raster
-  locations_raster <- rasterize(x = as.matrix(recordsdf[,1:2]), y = templaterast, 
+  locations_raster <- rasterize(x = as.matrix(recordsdf), y = templaterast, 
                                 values = 1, background = 0)
   locations_raster_masked <- mask(species_rast, templaterast) # mask to GB
   
@@ -52,7 +52,7 @@ optimise_sampling_uncertainty <- function(uncertainty_dataframe,
   i <- 1
   while(i<=number_locactions) {
     
-    if(i%%round(number_locactions/5)==0) print(i)
+    # if(i%%round(number_locactions/5)==0) print(i)
     
     # get the highest uncertainty point
     highest_uncert <- uncertaintytoedit[1,]
@@ -81,7 +81,6 @@ optimise_sampling_uncertainty <- function(uncertainty_dataframe,
 
 
 
-
 ## check whether they find new records
 check_distrib <- function(new_records, true_species_distrib) {
   
@@ -90,3 +89,41 @@ check_distrib <- function(new_records, true_species_distrib) {
   return(new_locs[new_locs$last == 1,])
   
 }
+
+
+## modelling - gams
+model_predict <- function(datato_model, environ_data) {
+  
+  print("!! modelling")
+  
+  # model - simple model with few explanatory variables
+  gam_mod <- gam(observations ~ s(impr_grass) +
+                   s(elev) + 
+                   s(bio_1),
+                 family = 'binomial',
+                 data = datato_model)
+  
+  print(summary(gam_mod))
+  
+  # convert environmental raster to data frame
+  environ_data_df <- as.data.frame(environ_data[[c("impr_grass", "elev", "bio_1")]],
+                                   na.rm = TRUE,
+                                   xy = TRUE)
+  
+  # create a new x variable
+  newx <- environ_data_df[, c("x", "y", "impr_grass", "elev", "bio_1")]
+  
+  print("!! predicting")
+  
+  # predict onto environment
+  newy <- predict(gam_mod, 
+                  newx,
+                  type = "response",
+                  se.fit = TRUE)
+  
+  modelbased_criterion_out <- na.omit(cbind(newx, newy))
+  
+  return(modelbased_criterion_out)
+}
+
+
