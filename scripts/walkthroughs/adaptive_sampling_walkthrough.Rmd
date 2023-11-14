@@ -10,8 +10,11 @@ output: html_document
 library(mgcv)
 library(terra)
 library(tidyverse)
+library(tidyterra)
 library(sf)
 library(viridis)
+
+source("../../scripts/functions/as_functions.R")
 
 ```
 
@@ -25,6 +28,7 @@ envdat <- rast('../../data/environmental_data_subset.tif')
 species_distrib_rast <- rast('../../outputs/simulated_data/true_species_distribution.tif')
 true_species_distrib_df <- as.data.frame(species_distrib_rast, xy=TRUE)
 colnames(true_species_distrib_df) <- c("x", "y", "presence")
+plot(species_distrib_rast, main = "True species distribution")
 
 ```
 
@@ -32,8 +36,8 @@ colnames(true_species_distrib_df) <- c("x", "y", "presence")
 ```{r choose_nlocs_dist}
 
 # choose number of new locations to sample and distance between them
-nlocs <- 400
-dist_apart <- 15000
+nlocs <- 1200
+dist_apart <- 10000
 
 write = TRUE
 
@@ -70,7 +74,26 @@ species_records <- read.csv("../../outputs/simulated_data/sampled_species_distri
 # define observations
 species_records$observations <- 1
 
-head(species_records)
+### create GB outline
+gboutline <- envdat[["elev"]]
+values(gboutline)[!is.na(values(gboutline))] <- 1
+gboutline <- as.polygons(gboutline)
+# plot(gboutline)
+
+
+initial_records_plot <- 
+  ggplot() +
+  geom_sf(data = gboutline) +
+  geom_point(data = species_records, aes(x,y)) +
+  coord_sf() +
+  theme_void()
+initial_records_plot
+
+if(write){
+  ggsave(initial_records_plot,
+         file = "../../outputs/plots/initial_records.png",
+         height = 5, width = 4)
+}
 
 ```
 
@@ -167,20 +190,21 @@ recsdf <- cbind(speciesobs_df,
 
 # model - simple model with few explanatory variables
 gammod <- gam(observations ~ s(impr_grass) +
-                s(elev) + 
-                s(bio_1),
+                # s(elev) +
+                s(bio_1) +
+                s(bio_12),
               family = 'binomial',
               data = recsdf)
 summary(gammod)
 # plot(gammod)
 
 # convert environmental raster to data frame
-edatdf <- as.data.frame(envdat[[c("impr_grass", "elev", "bio_1")]],
+edatdf <- as.data.frame(envdat[[c("impr_grass", "elev", "bio_1", "bio_12")]],
                         na.rm = TRUE,
                         xy = TRUE)
 
 # create a new x variable
-newx <- edatdf[, c("x", "y", "impr_grass", "elev", "bio_1")]
+newx <- edatdf[, c("x", "y", "impr_grass", "elev", "bio_1", "bio_12")]
 
 # predict onto environment
 newy <- predict(gammod, 
@@ -209,12 +233,12 @@ ggplot(modelbased_criterion, aes(x, y, fill = fit)) +
 
 # standard error 
 model_based_crit_plot <- ggplot(modelbased_criterion, 
-                                aes(x, y, fill = (se.fit))) +
+                                aes(x, y, fill = log(se.fit))) +
   geom_raster() +
   scale_fill_viridis(name = "Standard\nerror", 
                      begin = 0.1,
                      labels = c("Low", "High"),
-                     breaks = c(0.9e-2, 0.120)) +
+                     breaks = c(-31, 0.120)) +
   coord_sf(crs = 27700) +
   
   theme_void() +
@@ -287,8 +311,10 @@ emp_optim <- ggplot() +
                     values = c("#E69F00", "#009E73")) +
   geom_sf(data = empabsoutdf, aes(colour = "New recording\nlocations")) +
   coord_sf(expand = FALSE) +
-  scale_colour_manual(name = "", values = "white") +
-  ylim(0, 350000) +
+  scale_colour_manual(name = "", values = "black") +
+  # ylim(0, 350000) +
+  ylim(622500, 980000) +
+  xlim(45000, 425000) +
   
   theme_void() +
   theme(text = element_text(size = 25)) +
@@ -299,7 +325,7 @@ if(write) {
   
   ggsave(emp_optim, 
          file = "../../outputs/plots/emp_optim_selection.png",
-         height = 6,width = 5)
+         height = 5,width = 5)
   
 }
 
@@ -356,12 +382,14 @@ while(i<=nlocs) {
 
 # plot
 model_optim <- ggplot() +
-  geom_raster(data = modelbased_criterion, aes(x, y, fill = se.fit)) +
+  geom_raster(data = modelbased_criterion, aes(x, y, fill = log(se.fit))) +
   scale_fill_viridis_c(name = "Standard error", begin = 0.1) +
   geom_sf(data = uncertoutdf, aes(colour = "New recording\nlocations")) +
   coord_sf(expand = FALSE) +
-  scale_colour_manual(name = "", values = "white") +
-  ylim(0, 350000) +
+  scale_colour_manual(name = "", values = "black") +
+  # ylim(0, 350000) +
+  ylim(622500, 980000) +
+  xlim(45000, 425000) +
   
   theme_void() +
   theme(text = element_text(size = 25)) +
@@ -372,7 +400,7 @@ if(write) {
   
   ggsave(model_optim, 
          file = "../../outputs/plots/modelbased_optim_selection.png",
-         height = 6,width = 5)
+         height = 5,width = 5)
   
 }
 
@@ -401,10 +429,12 @@ empindep_draws <- ggplot() +
   geom_sf(data = emp_indepdraw_new_locs, 
           aes(colour = "New recording\nlocations")) +
   coord_sf(expand = FALSE) +
-  scale_colour_manual(values = c("white"), name = "") +
+  scale_colour_manual(values = c("black"), name = "") +
   scale_fill_manual(name = '', labels = c("Absences", "Observations"),
                     values = c("#E69F00", "#009E73")) +
-  ylim(0, 350000) +
+  # ylim(0, 350000) +
+  ylim(622500, 980000) +
+  xlim(45000, 425000) +
   
   theme_void() +
   theme(text = element_text(size = 25)) +
@@ -415,7 +445,7 @@ if(write) {
   
   ggsave(empindep_draws, 
          file = "../../outputs/plots/empirical_indep_selection.png",
-         height = 6,width = 5)
+         height = 5,width = 5)
   
 }
 
@@ -423,7 +453,7 @@ if(write) {
 
 #### Model-based indpendent draws
 
-Select the 750 locations with the highest uncertainty
+Select the 400 locations with the highest uncertainty
 
 ```{r model-based_independent_draws}
 
@@ -435,12 +465,15 @@ top_uncert <- st_as_sf(sorted_data[1:nlocs, c("x", "y")],
 
 # standard error + top error
 model_indep <- ggplot() +
-  geom_raster(data=modelbased_criterion, aes(x, y, fill = (se.fit))) +
+  geom_raster(data=modelbased_criterion, aes(x, y, fill = log(se.fit))) +
   geom_sf(data=top_uncert, aes(colour = "New recording\nlocations")) +
+  # geom_sf(data = gboutline, fill = NA) +
   coord_sf(expand = FALSE) +
   scale_fill_viridis_c(name = "Standard error", begin = 0.1) +
-  scale_colour_manual(name = "", values = "white") +
-  ylim(0, 350000) +
+  scale_colour_manual(name = "", values = "black") +
+  # ylim(0, 350000) +
+  ylim(622500, 980000) +
+  xlim(45000, 425000) +
   
   theme_void() +
   theme(text = element_text(size = 25)) +
@@ -451,7 +484,7 @@ if(write) {
   
   ggsave(model_indep, 
          file = "../../outputs/plots/model_indep_selection.png",
-         height = 6, width = 5)
+         height = 5, width = 5)
   
 }
 
@@ -463,7 +496,252 @@ if(write) {
 In adaptive sampling there will be a decision to make about the number of rounds of adaptive sampling and how many points to sample at each time point. For example, if data collection involved a lot of organisation and a trip overseas, it might be that a single collection incident is logistically possible. In other cases, it might be that we are able to carry out sampling over several field seasons, with the criterion layer recalculated at each step.
 
 
-#### the easy way:
+#### the complicated way:
+
+Here we show how this is possible. Using four batches of 100
+
+```{r rounds_and_batches}
+
+nbatches <- 4
+
+nlocs/nbatches # 4
+
+# uncertainty layer from first model
+modelbased_crit_sf <- uncertsf
+
+# the initial species records
+# I could add batch to this so that we can account for batch number in the modelling?
+initial_species_records <- species_records
+head(initial_species_records)
+
+# distance between records to maintain
+distance_apart <- dist_apart
+
+# # convert to a function
+# model_rounds_batches <- function(modelbased_crit_sf, 
+#                                  initial_species_records, 
+#                                  distance_apart) {
+#   
+#   
+#   
+# }
+
+
+# convert initial points to sf object
+initial_species_records_sf <- st_as_sf(initial_species_records[,c("x", "y")], 
+                                       coords = c("x", "y"), 
+                                       crs = 27700) 
+
+{
+  
+  # output data frames
+  new_locs_out <- data.frame() # includes new locs where species wasn't
+  new_species_observations <- data.frame() # only locations where species was seen
+  modeluncertainty_out <- data_frame() # storing model uncertainty
+  
+  ## start of for loop
+  for(batch_num in 1:nbatches) {
+    
+    print(paste("Batch", batch_num))
+    
+    #### remove sampling occasions close to existing records (from adaptive sampling)
+    # ideally would include the old locations too but would take AGES to run.
+    if(batch_num>1){
+      print(paste("Removing potential sampling occasions within", distance_apart, "m of previous adaptively sampled locations"))
+      
+      # convert new records to sf
+      new_species_observations_sf <- st_as_sf(new_locs_out[,c("x", "y")], # use dataframe with all selected locations in
+                                              coords = c("x", "y"), 
+                                              crs = 27700)
+      
+      # find all points that are in the same location - that intersect
+      points_intersect <- unlist(st_intersects(new_species_observations_sf, 
+                                               modelbased_crit_sf,
+                                               dist = 10000))
+      
+      # find all points within x distance of highest uncert
+      points_within_dist <- unlist(st_is_within_distance(new_species_observations_sf, 
+                                                         modelbased_crit_sf,
+                                                         dist = 10000))
+      
+      if(length(c(points_within_dist, points_intersect))>0){
+        # remove those points from the uncertainty dataframe 
+        modelbased_crit_sf <- modelbased_crit_sf[-c(points_within_dist, points_intersect),]
+      }
+      
+      # # bind to initial points
+      # initial_species_records_sf <- rbind(initial_species_records_sf, new_species_observations_sf)
+    }
+    
+    
+    #### Get new sampling occasions
+    print(paste("Getting sampling occasions"))
+    {
+      ## sample locations optimally from model uncertainty
+      batch <- optimise_sampling_uncertainty(uncertainty_dataframe = modelbased_crit_sf,
+                                             number_locactions = round(nlocs/nbatches))
+      
+      ## check whether they find new records - Go out and sample observations
+      new_locs <- check_distrib(new_records = terra::vect(batch), 
+                                true_species_distrib = species_distrib_rast)
+      
+      ## store new species observations
+      new_locs$batch <- batch_num
+      
+      # store new locs including locations where species wasn't
+      new_locs_out <- rbind(new_locs_out, 
+                            new_locs)
+      
+      # # store new sampling occasions of only locs where species was seen
+      # new_species_observations <- rbind(new_species_observations, 
+      #                                   new_locs[new_locs$observations == 1,])
+    }
+    
+    #### prepare for modelling
+    print(paste("Preparing for modelling"))
+    {
+      ## bind to initial records
+      all_records <- rbind(initial_species_records[,1:2], 
+                           new_locs_out[new_locs_out$observations==1, c("x", "y")]) ## should we add batch to this so that we can account for it in the modelling?
+      
+      ## remove duplicates for modelling
+      all_records <- all_records[!duplicated(all_records),]
+      
+      ## add observations column
+      all_records$observations <- 1
+      
+      ## generate pseudoabsences from unvisited locations
+      absence_cells <- find_empirical_absences(all_records[,1:2], envdat[[1]])
+      
+      ## bind presences and pseudos together
+      modelling_df <- rbind(all_records, absence_cells)
+      
+      ## extract environmental data
+      modelling_df <- cbind(modelling_df, terra::extract(envdat, modelling_df[,1:2], 
+                                                         xy = FALSE, method = "simple"))
+    }
+    
+    ## modelling - gams
+    modelpredictions <- model_predict(datato_model = modelling_df, environ_data = envdat)
+    
+    #### extract uncertainty
+    print(paste("Getting uncertainty"))
+    {
+      # get standard error
+      modeluncertainty <- modelpredictions[,c("x", "y", "se.fit")]
+      
+      # add batch number
+      modeluncertainty$batch <- batch_num
+      
+      # store
+      modeluncertainty_out <- rbind(modeluncertainty_out, modeluncertainty)
+      
+      # convert to sf
+      modelbased_crit_sf <- st_as_sf(modeluncertainty, coords = c("x", "y"), crs = 27700)
+      
+      # order the uncertainty layer according to decreasing uncertainty - se.fit
+      # this is the layer that is updated for the next round of sampling
+      modelbased_crit_sf <- modelbased_crit_sf[order(modelbased_crit_sf$se.fit,
+                                                     decreasing = TRUE), ]
+    }
+    
+  }
+  
+  # return(list(all_adaptive_locations = new_locs_out,
+  #             model_uncertainty = modeluncertainty_out))
+  
+}
+
+```
+
+
+```{r plotting batches}
+
+
+# get initial uncertainty data bound to AS uncert
+
+
+# get the initial uncertainty layer as dataframe
+initial_uncert_data <- data.frame(x = st_coordinates(uncertsf)[,1],
+                                  y = st_coordinates(uncertsf)[,2],
+                                  se.fit = uncertsf$se.fit, 
+                                  batch = 'initial')
+
+# bind to the new uncertainty layers
+all_uncert_data <- rbind(initial_uncert_data, modeluncertainty_out)
+
+# remove batch #4 - no fifth round of adaptive sampling
+all_uncert_data <- all_uncert_data[all_uncert_data$batch != 4,]
+
+# convert the batch number to factor and rename
+new_locs_out$batch <- factor(new_locs_out$batch)
+all_uncert_data$batch <- factor(all_uncert_data$batch, levels = c("initial", 1, 2, 3))
+
+levels(new_locs_out$batch) <- c("Batch 1","Batch 2",
+                                "Batch 3","Batch 4")
+levels(all_uncert_data$batch) <- c("Batch 1","Batch 2",
+                                   "Batch 3","Batch 4")
+
+
+
+# plot
+model_optim <- ggplot() +
+  geom_raster(data = all_uncert_data, aes(x, y, fill = log(se.fit))) +
+  scale_fill_viridis_c(name = "Standard error", begin = 0.1) +
+  geom_point(data = new_locs_out, aes(x,y), size = 0.8) +#,colour = factor(observations))) +
+  coord_sf(expand = FALSE) +
+  # ylim(0, 350000) +
+  ylim(622500, 980000) +
+  xlim(45000, 425000) +
+  
+  theme_bw() +
+  theme(text = element_text(size = 30),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid.major = element_blank(),
+        strip.text.x = element_text(size = 18, family="Calibri"),
+        strip.background = element_blank()) +
+  guides(fill = "none") +
+  # scale_colour_manual(name = "Species\npresence", values = c("black", "grey")) +
+  
+  facet_wrap(~batch, ncol = 2)
+model_optim
+
+
+if(write) {
+  
+  ggsave(model_optim, 
+         file = "../../outputs/plots/batch_adaptive_sampling.png",
+         height = 6, width = 5)
+  
+}
+
+```
+
+
+
+```{r new records}
+
+new_records_plot <- 
+  ggplot() +
+  geom_sf(data = gboutline) +
+  geom_point(data = new_locs_out[new_locs_out$observations==1,], aes(x,y), colour="darkgreen") +
+  coord_sf() +
+  theme_void()
+new_records_plot
+
+if(write){
+  ggsave(new_records_plot,
+         file = "../../outputs/plots/new_records.png",
+         height = 5, width = 4)
+}
+
+```
+
+
+
+#### the easy way of showwing batches
 
 Only temporary - need to code the different batches and rerunning the model each time when I have the energy
 
@@ -496,164 +774,23 @@ model_optim
 
 
 
-#### the complicated way:
-
-Here we show how this is possible. Using four batches of 100
-
-```{r}
-
-nbatches <- 4
-
-nlocs/nbatches # 4
-
-# uncertainty layer from first model
-modelbased_crit_sf <- uncertsf
-
-# the initial species records
-initial_species_records <- species_records
-head(initial_species_records)
-
-# distance between records to maintain
-distance_apart <- dist_apart
 
 
-
-
-
-# convert initial points to sf object
-initial_species_records_sf <- st_as_sf(initial_species_records[,c("x", "y")], 
-                                       coords = c("x", "y"), 
-                                       crs = 27700)
-
-# output data frames
-new_species_observations <- data.frame()
-modeluncertainty_out <- data_frame()
-
-## start of for loop
-for(batch_num in 1:nbatches) {
-  
-  print(paste("Batch", batch_num))
-  
-  #### remove sampling occasions close to existing records (from adaptive sampling)
-  # ideally would include the old locations too but would take AGES to run.
-  if(batch_num>1){
-    print(paste("Removing potential sampling occasions within", distance_apart, "m of previous adaptively sampled records"))
-    
-    # convert new records to sf
-    new_species_observations_sf <- st_as_sf(new_species_observations[,c("x", "y")], 
-                                            coords = c("x", "y"), 
-                                            crs = 27700)
-    # find all points within x distance of highest uncert
-    points_within_dist <- unlist(st_is_within_distance(new_species_observations_sf, 
-                                                       modelbased_crit_sf,
-                                                       dist = distance_apart))
-    
-    if(length(points_within_dist)>0){
-      # remove those points from the uncertainty dataframe 
-      modelbased_crit_sf <- modelbased_crit_sf[-points_within_dist,]
-    }
-    
-    # # bind to initial points
-    # initial_species_records_sf <- rbind(initial_species_records_sf, new_species_observations_sf)
-  }
-  
-  
-  #### Get new sampling occasions
-  print(paste("Getting sampling occasions"))
-  {
-    ## sample locations optimally from model uncertainty
-    batch <- optimise_sampling_uncertainty(uncertainty_dataframe = modelbased_crit_sf,
-                                           number_locactions = round(nlocs/nbatches))
-    
-    ## check whether they find new records - Go out and sample observations
-    new_locs <- check_distrib(new_records = terra::vect(batch), 
-                              true_species_distrib = species_distrib_rast)[,c("x", "y")]
-    
-    ## store new species observations
-    new_locs$batch <- batch_num
-    
-    # store new sampling occasions
-    new_species_observations <- rbind(new_species_observations, new_locs)
-  }
-  
-  #### prepare for modelling
-  print(paste("Preparing for modelling"))
-  {
-    ## bind to initial data
-    all_records <- rbind(initial_species_records[,1:2], 
-                         new_species_observations[, c("x", "y")])
-    
-    ## remove duplicates for modelling
-    all_records <- all_records[!duplicated(all_records),]
-    
-    ## add observations column
-    all_records$observations <- 1
-    
-    ## generate pseudoabsences from unvisited locations
-    absence_cells <- find_empirical_absences(all_records[,1:2], envdat[[1]])
-    
-    ## bind presences and pseudos together
-    modelling_df <- rbind(all_records, absence_cells)
-    
-    ## extract environmental data
-    modelling_df <- cbind(modelling_df, terra::extract(envdat, modelling_df[,1:2], 
-                                                       xy = FALSE, method = "simple"))
-  }
-  
-  ## modelling - gams
-  modelpredictions <- model_predict(datato_model = modelling_df, environ_data = envdat)
-  
-  #### extract uncertainty
-  print(paste("Getting uncertainty"))
-  {
-    # get standard error
-    modeluncertainty <- modelpredictions[,c("x", "y", "se.fit")]
-    
-    # add batch number
-    modeluncertainty$batch <- batch_num
-    
-    # store
-    modeluncertainty_out <- rbind(modeluncertainty_out, modeluncertainty)
-    
-    # convert to sf
-    modelbased_crit_sf <- st_as_sf(modeluncertainty, coords = c("x", "y"), crs = 27700)
-    
-    # order the uncertainty layer according to decreasing uncertainty - se.fit
-    # this is the layer that is updated for the next round of sampling
-    modelbased_crit_sf <- modelbased_crit_sf[order(modelbased_crit_sf$se.fit,
-                                                   decreasing = TRUE), ]
-  }
-  
-}
-
-
-```
-
+New locations
 
 ```{r}
 
 
-
-# plot
-model_optim <- ggplot() +
-  geom_raster(data = modelbased_criterion, aes(x, y, fill = se.fit)) +
-  scale_fill_viridis_c(name = "Standard error", begin = 0.1) +
-  geom_point(data = new_species_observations, aes(x,y,colour = factor(batch))) +
+ggplot() +
+  # geom_raster(data = modeluncertainty_out, aes(x, y, fill = se.fit)) +
+  # scale_fill_viridis_c(name = "Standard error", begin = 0.1) +
+  geom_point(data = new_locs_out[new_locs_out$observations==1,], aes(x,y)) +
   coord_sf(expand = FALSE) +
-  # scale_colour_manual(name = "", values = c("black", "white", "red", "orange")) +
-  ylim(0, 350000) +
   
-  theme_void() +
+  theme_bw() +
   theme(text = element_text(size = 25)) +
-  guides(fill = "none", colour = "none") +
-  facet_wrap(~batch, ncol = 2)
-model_optim
+  guides(fill = "none")
 
-ggplot(modeluncertainty_out, aes(x,y, fill = se.fit)) +
-  geom_tile() +
-  ylim(250000, 350000) +
-  xlim(300000, 400000) +
-  facet_wrap(~batch)
 
 ```
 

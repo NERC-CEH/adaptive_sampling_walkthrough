@@ -35,7 +35,7 @@ scalevals <- function(x, maxval=100) {
   names(lcmmasked) <- c('broad_wood', 'conif_wood', 'arable', 'impr_grass', 'neutr_grass', 'calc_grass', 'acid_grass',
                         'fen_marsh_swamp', 'heather', 'heather_grass', 'bog', 'inland_rock', 'saltwater', 'freshwater',
                         'sup_lit_rock', 'sup_lit_sed', 'lit_rock', 'lit_sed', 'saltmarsh', 'urban', 'suburban')
-  # plot(lcmmask)
+  # plot(lcmmasked)
   
   
   # elevation - bioclim elevation wc2.1 30s
@@ -86,9 +86,10 @@ envdat <- terra::rast('data/environmental_data_subset.tif')
 
 ##### simulate true distribution of a single species
 # combination of precipitation seasonailty, elevation and broadleaf woodland
-species_layer <- envdat[["bio_1"]]* # Annual mean temp
-  envdat[["bio_15"]]+ # PrecipSeasonality
-  envdat[["impr_grass"]] # improved grassland
+species_layer <- scalevals(envdat[["bio_1"]])* # Annual mean temp
+  scalevals(envdat[["bio_15"]])+ # PrecipSeasonality
+  scalevals(envdat[["elev"]])+
+  scalevals(envdat[["impr_grass"]]) # improved grassland
 names(species_layer) <- 'species_probability'
 plot(species_layer)
 
@@ -131,11 +132,11 @@ true_species_urban <- terra::extract(envdat[['suburban']]+envdat[['urban']],
 
 # get biassed sampling of true species distribution
 latitude_bias <- scalevals(true_species_locs$species_probability/
-                             true_species_locs$y^3)
+                             true_species_locs$y)
 urban_bias <- scalevals(true_species_urban[,2]^2)
 
 # sample
-samp_spp_ind <- sample(1:nrow(true_species_locs), size = nrow(true_species_locs)*0.3, # sample 40% of the distribution
+samp_spp_ind <- sample(1:nrow(true_species_locs), size = nrow(true_species_locs)*0.1, # sample 10% of the distribution
                        prob = latitude_bias * urban_bias)
 
 sampled_species_distrib <- true_species_locs[samp_spp_ind, c('x', 'y')]

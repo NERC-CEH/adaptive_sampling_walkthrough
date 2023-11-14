@@ -84,9 +84,10 @@ optimise_sampling_uncertainty <- function(uncertainty_dataframe,
 ## check whether they find new records
 check_distrib <- function(new_records, true_species_distrib) {
   
-  new_locs <- terra::extract(true_species_distrib, new_records, xy = TRUE)
+  new_locs <- terra::extract(true_species_distrib, new_records, xy = TRUE)[,c("x", "y", "last")]
+  colnames(new_locs) <- c("x", "y", "observations")
   
-  return(new_locs[new_locs$last == 1,])
+  return(new_locs)
   
 }
 
@@ -98,20 +99,21 @@ model_predict <- function(datato_model, environ_data) {
   
   # model - simple model with few explanatory variables
   gam_mod <- gam(observations ~ s(impr_grass) +
-                   s(elev) + 
-                   s(bio_1),
+                   # s(elev) + 
+                   s(bio_1) +
+                   s(bio_12),
                  family = 'binomial',
                  data = datato_model)
   
   print(summary(gam_mod))
   
   # convert environmental raster to data frame
-  environ_data_df <- as.data.frame(environ_data[[c("impr_grass", "elev", "bio_1")]],
+  environ_data_df <- as.data.frame(environ_data[[c("impr_grass", "elev", "bio_1", "bio_12")]],
                                    na.rm = TRUE,
                                    xy = TRUE)
   
   # create a new x variable
-  newx <- environ_data_df[, c("x", "y", "impr_grass", "elev", "bio_1")]
+  newx <- environ_data_df[, c("x", "y", "impr_grass", "elev", "bio_1", "bio_12")]
   
   print("!! predicting")
   
