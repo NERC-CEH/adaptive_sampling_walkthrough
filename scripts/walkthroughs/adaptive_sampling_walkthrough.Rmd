@@ -493,164 +493,25 @@ if(write) {
 
 ### Step 3. Rounds vs batches
 
-In adaptive sampling there will be a decision to make about the number of rounds of adaptive sampling and how many points to sample at each time point. For example, if data collection involved a lot of organisation and a trip overseas, it might be that a single collection incident is logistically possible. In other cases, it might be that we are able to carry out sampling over several field seasons, with the criterion layer recalculated at each step.
+In adaptive sampling there will be a decision to make about the number of rounds of adaptive sampling and how many points to sample at each time point. For example, if data collection involved a lot of organisation and a trip overseas, it might be that it's only possible to undertake a single collection incident In other cases, it might be that we are able to carry out sampling over several iterations, with the criterion layer recalculated at each step.
 
-
-#### the complicated way:
-
-Here we show how this is possible. Using four batches of 100
+Here we show how this is possible. 
 
 ```{r rounds_and_batches}
 
-nbatches <- 4
-
-nlocs/nbatches # 4
-
-# uncertainty layer from first model
-modelbased_crit_sf <- uncertsf
-
-# the initial species records
-# I could add batch to this so that we can account for batch number in the modelling?
-initial_species_records <- species_records
-head(initial_species_records)
-
-# distance between records to maintain
-distance_apart <- dist_apart
-
-# # convert to a function
-# model_rounds_batches <- function(modelbased_crit_sf, 
-#                                  initial_species_records, 
-#                                  distance_apart) {
-#   
-#   
-#   
-# }
-
-
-# convert initial points to sf object
-initial_species_records_sf <- st_as_sf(initial_species_records[,c("x", "y")], 
-                                       coords = c("x", "y"), 
-                                       crs = 27700) 
-
-{
-  
-  # output data frames
-  new_locs_out <- data.frame() # includes new locs where species wasn't
-  new_species_observations <- data.frame() # only locations where species was seen
-  modeluncertainty_out <- data_frame() # storing model uncertainty
-  
-  ## start of for loop
-  for(batch_num in 1:nbatches) {
-    
-    print(paste("Batch", batch_num))
-    
-    #### remove sampling occasions close to existing records (from adaptive sampling)
-    # ideally would include the old locations too but would take AGES to run.
-    if(batch_num>1){
-      print(paste("Removing potential sampling occasions within", distance_apart, "m of previous adaptively sampled locations"))
-      
-      # convert new records to sf
-      new_species_observations_sf <- st_as_sf(new_locs_out[,c("x", "y")], # use dataframe with all selected locations in
-                                              coords = c("x", "y"), 
-                                              crs = 27700)
-      
-      # find all points that are in the same location - that intersect
-      points_intersect <- unlist(st_intersects(new_species_observations_sf, 
-                                               modelbased_crit_sf,
-                                               dist = 10000))
-      
-      # find all points within x distance of highest uncert
-      points_within_dist <- unlist(st_is_within_distance(new_species_observations_sf, 
-                                                         modelbased_crit_sf,
-                                                         dist = 10000))
-      
-      if(length(c(points_within_dist, points_intersect))>0){
-        # remove those points from the uncertainty dataframe 
-        modelbased_crit_sf <- modelbased_crit_sf[-c(points_within_dist, points_intersect),]
-      }
-      
-      # # bind to initial points
-      # initial_species_records_sf <- rbind(initial_species_records_sf, new_species_observations_sf)
-    }
-    
-    
-    #### Get new sampling occasions
-    print(paste("Getting sampling occasions"))
-    {
-      ## sample locations optimally from model uncertainty
-      batch <- optimise_sampling_uncertainty(uncertainty_dataframe = modelbased_crit_sf,
-                                             number_locactions = round(nlocs/nbatches))
-      
-      ## check whether they find new records - Go out and sample observations
-      new_locs <- check_distrib(new_records = terra::vect(batch), 
-                                true_species_distrib = species_distrib_rast)
-      
-      ## store new species observations
-      new_locs$batch <- batch_num
-      
-      # store new locs including locations where species wasn't
-      new_locs_out <- rbind(new_locs_out, 
-                            new_locs)
-      
-      # # store new sampling occasions of only locs where species was seen
-      # new_species_observations <- rbind(new_species_observations, 
-      #                                   new_locs[new_locs$observations == 1,])
-    }
-    
-    #### prepare for modelling
-    print(paste("Preparing for modelling"))
-    {
-      ## bind to initial records
-      all_records <- rbind(initial_species_records[,1:2], 
-                           new_locs_out[new_locs_out$observations==1, c("x", "y")]) ## should we add batch to this so that we can account for it in the modelling?
-      
-      ## remove duplicates for modelling
-      all_records <- all_records[!duplicated(all_records),]
-      
-      ## add observations column
-      all_records$observations <- 1
-      
-      ## generate pseudoabsences from unvisited locations
-      absence_cells <- find_empirical_absences(all_records[,1:2], envdat[[1]])
-      
-      ## bind presences and pseudos together
-      modelling_df <- rbind(all_records, absence_cells)
-      
-      ## extract environmental data
-      modelling_df <- cbind(modelling_df, terra::extract(envdat, modelling_df[,1:2], 
-                                                         xy = FALSE, method = "simple"))
-    }
-    
-    ## modelling - gams
-    modelpredictions <- model_predict(datato_model = modelling_df, environ_data = envdat)
-    
-    #### extract uncertainty
-    print(paste("Getting uncertainty"))
-    {
-      # get standard error
-      modeluncertainty <- modelpredictions[,c("x", "y", "se.fit")]
-      
-      # add batch number
-      modeluncertainty$batch <- batch_num
-      
-      # store
-      modeluncertainty_out <- rbind(modeluncertainty_out, modeluncertainty)
-      
-      # convert to sf
-      modelbased_crit_sf <- st_as_sf(modeluncertainty, coords = c("x", "y"), crs = 27700)
-      
-      # order the uncertainty layer according to decreasing uncertainty - se.fit
-      # this is the layer that is updated for the next round of sampling
-      modelbased_crit_sf <- modelbased_crit_sf[order(modelbased_crit_sf$se.fit,
-                                                     decreasing = TRUE), ]
-    }
-    
-  }
-  
-  # return(list(all_adaptive_locations = new_locs_out,
-  #             model_uncertainty = modeluncertainty_out))
-  
-}
+# Model rounds and batches
+as_batches <- adaptive_sampling_rounds(nbatches = 4,
+                                       total_number_locs = nlocs,
+                                       
+                                       # uncertainty layer from first model
+                                       modelbased_crit_sf = uncertsf,
+                                       
+                                       # the initial species records
+                                       # I could add batch to this so that we can account for batch number in the modelling?
+                                       initial_species_records = species_records,
+                                       
+                                       # distance between records to maintain
+                                       distance_apart = dist_apart)
 
 ```
 
@@ -658,8 +519,7 @@ initial_species_records_sf <- st_as_sf(initial_species_records[,c("x", "y")],
 ```{r plotting batches}
 
 
-# get initial uncertainty data bound to AS uncert
-
+## get initial uncertainty data bound to AS uncert
 
 # get the initial uncertainty layer as dataframe
 initial_uncert_data <- data.frame(x = st_coordinates(uncertsf)[,1],
@@ -668,16 +528,18 @@ initial_uncert_data <- data.frame(x = st_coordinates(uncertsf)[,1],
                                   batch = 'initial')
 
 # bind to the new uncertainty layers
-all_uncert_data <- rbind(initial_uncert_data, modeluncertainty_out)
+all_uncert_data <- rbind(initial_uncert_data, as_batches[["model_uncertainty"]])
 
 # remove batch #4 - no fifth round of adaptive sampling
 all_uncert_data <- all_uncert_data[all_uncert_data$batch != 4,]
 
 # convert the batch number to factor and rename
-new_locs_out$batch <- factor(new_locs_out$batch)
+new_locations <- as_batches[["all_adaptive_locations"]]
+
+new_locations$batch <- factor(new_locations$batch)
 all_uncert_data$batch <- factor(all_uncert_data$batch, levels = c("initial", 1, 2, 3))
 
-levels(new_locs_out$batch) <- c("Batch 1","Batch 2",
+levels(new_locations$batch) <- c("Batch 1","Batch 2",
                                 "Batch 3","Batch 4")
 levels(all_uncert_data$batch) <- c("Batch 1","Batch 2",
                                    "Batch 3","Batch 4")
@@ -688,7 +550,7 @@ levels(all_uncert_data$batch) <- c("Batch 1","Batch 2",
 model_optim <- ggplot() +
   geom_raster(data = all_uncert_data, aes(x, y, fill = log(se.fit))) +
   scale_fill_viridis_c(name = "Standard error", begin = 0.1) +
-  geom_point(data = new_locs_out, aes(x,y), size = 0.8) +#,colour = factor(observations))) +
+  geom_point(data = new_locations, aes(x,y), size = 0.8) +#,colour = factor(observations))) +
   coord_sf(expand = FALSE) +
   # ylim(0, 350000) +
   ylim(622500, 980000) +
@@ -726,7 +588,7 @@ if(write) {
 new_records_plot <- 
   ggplot() +
   geom_sf(data = gboutline) +
-  geom_point(data = new_locs_out[new_locs_out$observations==1,], aes(x,y), colour="darkgreen") +
+  geom_point(data = new_locations[new_locations$observations==1,], aes(x,y), colour="darkgreen") +
   coord_sf() +
   theme_void()
 new_records_plot
@@ -741,7 +603,7 @@ if(write){
 
 
 
-#### the easy way of showwing batches
+#### the easy way of showing batches
 
 Only temporary - need to code the different batches and rerunning the model each time when I have the energy
 
@@ -769,28 +631,6 @@ model_optim <- ggplot() +
   guides(fill = "none", colour = "none") +
   facet_wrap(~batches, ncol = 2)
 model_optim
-
-```
-
-
-
-
-
-New locations
-
-```{r}
-
-
-ggplot() +
-  # geom_raster(data = modeluncertainty_out, aes(x, y, fill = se.fit)) +
-  # scale_fill_viridis_c(name = "Standard error", begin = 0.1) +
-  geom_point(data = new_locs_out[new_locs_out$observations==1,], aes(x,y)) +
-  coord_sf(expand = FALSE) +
-  
-  theme_bw() +
-  theme(text = element_text(size = 25)) +
-  guides(fill = "none")
-
 
 ```
 
