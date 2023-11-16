@@ -192,7 +192,8 @@ recsdf <- cbind(speciesobs_df,
 gammod <- gam(observations ~ s(impr_grass) +
                 # s(elev) +
                 s(bio_1) +
-                s(bio_12),
+                s(bio_12) +
+                s(x,y),
               family = 'binomial',
               data = recsdf)
 summary(gammod)

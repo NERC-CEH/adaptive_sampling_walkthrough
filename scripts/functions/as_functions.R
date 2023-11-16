@@ -101,7 +101,8 @@ model_predict <- function(datato_model, environ_data) {
   gam_mod <- gam(observations ~ s(impr_grass) +
                    # s(elev) + 
                    s(bio_1) +
-                   s(bio_12),
+                   s(bio_12) +
+                   s(x,y),
                  family = 'binomial',
                  data = datato_model)
   
@@ -145,7 +146,7 @@ adaptive_sampling_rounds <- function(modelbased_crit_sf,
   # output data frames
   new_locs_out <- data.frame() # includes new locs where species wasn't
   new_species_observations <- data.frame() # only locations where species was seen
-  modeluncertainty_out <- data_frame() # storing model uncertainty
+  modeluncertainty_out <- data.frame() # storing model uncertainty
   
   # print statement
   print(paste("Sampling", round(total_number_locs/nbatches), "per batch. Number of batches =", nbatches))
