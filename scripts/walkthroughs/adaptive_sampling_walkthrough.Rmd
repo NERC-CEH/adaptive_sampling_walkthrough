@@ -65,7 +65,9 @@ This will follow several steps:
 
 ## Step 0. Generation of initial data
 
-For any adaptive sampling programme, we first need some initial data on which we can base our further sampling. This is code is located in `/scripts/processing/simulate_species.R` and uses some environmental variables to generate the true distribution of a species. We then sample this true species distribution according to the suburban distribution of GB, mimicking real life where people tend to record close to their homes.
+For any adaptive sampling programme, we first need some initial data on which we can base our further sampling. Here, we use the simulated distribution of the Hipporhinostrocow, latin name _Spikus milligani_. This species is located across the very edge of Western Europe and is thought to be slowly increasing its range northwards and eastwards. It's thought to be very reliant on areas with high range in rainfall and warmer temperatures. 
+
+The code to simulate this species' distribution is located in `/scripts/processing/simulate_species.R`. We then sample this true species distribution probabibalistically using the sum of GB's urban and suburban distribution. We did this to mimic the real life situation where people tend to go wildlife recording close to their homes. This process has generated the distribution of the Hipporhinostrocow (Figure 1).
 
 ```{r load_species_data}
 
@@ -87,7 +89,9 @@ initial_records_plot <-
   geom_point(data = species_records, aes(x,y)) +
   coord_sf() +
   theme_void()
-initial_records_plot
+initial_records_plot +
+  labs(caption = "Figure 1 The recorded distribution of the\nHipporhinostrocow in Great Britain") +
+  theme(text = element_text(size = 18))
 
 if(write){
   ggsave(initial_records_plot,
@@ -98,6 +102,8 @@ if(write){
 ```
 
 ## Step 1. Definition of a criterion
+
+The first step in the adaptive sampling process is to define a criterion layer, which is a layer that contains our sampling priorities. It is from this layer that we choose locations at which to carry out further sampling. This can broadly be done in two ways, using Empirical methods or model-based methods. There are many ways in which this can be done but we demonstrate only one of each. See the paper for more examples.
 
 ### Step 1a. Empirical criterion
 
@@ -237,9 +243,10 @@ model_based_crit_plot <- ggplot(modelbased_criterion,
                                 aes(x, y, fill = log(se.fit))) +
   geom_raster() +
   scale_fill_viridis(name = "Standard\nerror", 
-                     begin = 0.1,
+                     end = 0.9,
                      labels = c("Low", "High"),
-                     breaks = c(-31, 0.120)) +
+                     breaks = c(quantile(log(modelbased_criterion$se.fit), probs = c(0.2)),
+                                quantile(log(modelbased_criterion$se.fit), probs = c(0.8)))) +
   coord_sf(crs = 27700) +
   
   theme_void() +
@@ -384,7 +391,8 @@ while(i<=nlocs) {
 # plot
 model_optim <- ggplot() +
   geom_raster(data = modelbased_criterion, aes(x, y, fill = log(se.fit))) +
-  scale_fill_viridis_c(name = "Standard error", begin = 0.1) +
+  scale_fill_viridis_c(name = "Standard error", 
+                       end = 0.9) +
   geom_sf(data = uncertoutdf, aes(colour = "New recording\nlocations")) +
   coord_sf(expand = FALSE) +
   scale_colour_manual(name = "", values = "black") +
@@ -470,7 +478,8 @@ model_indep <- ggplot() +
   geom_sf(data=top_uncert, aes(colour = "New recording\nlocations")) +
   # geom_sf(data = gboutline, fill = NA) +
   coord_sf(expand = FALSE) +
-  scale_fill_viridis_c(name = "Standard error", begin = 0.1) +
+  scale_fill_viridis_c(name = "Standard error", 
+                       end = 0.9) +
   scale_colour_manual(name = "", values = "black") +
   # ylim(0, 350000) +
   ylim(622500, 980000) +
@@ -541,7 +550,7 @@ new_locations$batch <- factor(new_locations$batch)
 all_uncert_data$batch <- factor(all_uncert_data$batch, levels = c("initial", 1, 2, 3))
 
 levels(new_locations$batch) <- c("Batch 1","Batch 2",
-                                "Batch 3","Batch 4")
+                                 "Batch 3","Batch 4")
 levels(all_uncert_data$batch) <- c("Batch 1","Batch 2",
                                    "Batch 3","Batch 4")
 
@@ -550,7 +559,8 @@ levels(all_uncert_data$batch) <- c("Batch 1","Batch 2",
 # plot
 model_optim <- ggplot() +
   geom_raster(data = all_uncert_data, aes(x, y, fill = log(se.fit))) +
-  scale_fill_viridis_c(name = "Standard error", begin = 0.1) +
+  scale_fill_viridis_c(name = "Standard error", 
+                       end = 0.9) +
   geom_point(data = new_locations, aes(x,y), size = 0.8) +#,colour = factor(observations))) +
   coord_sf(expand = FALSE) +
   # ylim(0, 350000) +
@@ -583,7 +593,6 @@ if(write) {
 ```
 
 
-
 ```{r new records}
 
 new_records_plot <- 
@@ -599,39 +608,6 @@ if(write){
          file = "../../outputs/plots/new_records.png",
          height = 5, width = 4)
 }
-
-```
-
-
-
-#### the easy way of showing batches
-
-Only temporary - need to code the different batches and rerunning the model each time when I have the energy
-
-```{r}
-
-library(patchwork)
-
-batches <- sample(1:4, size = nrow(uncertoutdf), replace = TRUE)
-
-batched_data <- cbind(uncertoutdf, batches)
-
-head(batched_data)
-
-# plot
-model_optim <- ggplot() +
-  geom_raster(data = modelbased_criterion, aes(x, y, fill = se.fit)) +
-  scale_fill_viridis_c(name = "Standard error", begin = 0.1) +
-  geom_sf(data = batched_data, aes(colour = factor(batches))) +
-  coord_sf(expand = FALSE) +
-  scale_colour_manual(name = "", values = c("black", "white", "red", "orange")) +
-  ylim(0, 350000) +
-  
-  theme_void() +
-  theme(text = element_text(size = 25)) +
-  guides(fill = "none", colour = "none") +
-  facet_wrap(~batches, ncol = 2)
-model_optim
 
 ```
 

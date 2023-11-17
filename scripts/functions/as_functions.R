@@ -93,7 +93,7 @@ check_distrib <- function(new_records, true_species_distrib) {
 
 
 ## modelling - gams
-model_predict <- function(datato_model, environ_data) {
+model_predict <- function(datato_model, environ_data, printsum = FALSE) {
   
   print("!! modelling")
   
@@ -106,7 +106,7 @@ model_predict <- function(datato_model, environ_data) {
                  family = 'binomial',
                  data = datato_model)
   
-  print(summary(gam_mod))
+  if(printsum) print(summary(gam_mod))
   
   # convert environmental raster to data frame
   environ_data_df <- as.data.frame(environ_data[[c("impr_grass", "elev", "bio_1", "bio_12")]],
