@@ -5,7 +5,16 @@ date: "2023-10-24"
 output: html_document
 ---
 
-```{r setup}
+```{r setup, include = FALSE}
+
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+
+set.seed(123)
+
+```
+
+
+```{r packages, include = FALSE}
 
 library(mgcv)
 library(terra)
@@ -19,7 +28,7 @@ source("../../scripts/functions/as_functions.R")
 ```
 
 
-```{r initial_data}
+```{r initial_data, include = FALSE}
 
 # environmental data for raster
 envdat <- rast('../../data/environmental_data_subset.tif')
@@ -38,6 +47,7 @@ plot(species_distrib_rast, main = "True species distribution")
 # choose number of new locations to sample and distance between them
 nlocs <- 1200
 dist_apart <- 10000
+n_rounds <- 4
 
 write = TRUE
 
@@ -50,26 +60,26 @@ This R notebook accompanies figure XX in the paper 'Adaptive sampling in ecology
 
 This will follow several steps:
 
-0. Generation of initial data
+0. Data - Generate initial data
 1. Defining a criterion
-1a. Empirical
-1b. Model-based
+    - 1a. Empirical
+    - 1b. Model-based
 2. Selection of new sampling occasions
-2a. Optimised
-2b. Independent draws
+    - 2a. Optimised
+    - 2b. Independent draws
 3. Sampling activity
-- Rounds vs batches
+    - Rounds vs batches
 
 
 # Adaptive sampling
 
 ## Step 0. Generation of initial data
 
-For any adaptive sampling programme, we first need some initial data on which we can base our further sampling. Here, we use the simulated distribution of the hipporhinostricow, latin name _Spikus milligani_. This species is located across the very edge of Western Europe and is thought to be slowly increasing its range northwards and eastwards. It's thought to be very reliant on areas with high range in rainfall and warmer temperatures. 
+For any adaptive sampling programme, we first need some initial data on which we can base our further sampling. Here, we use the simulated distribution of the hipporhinostricow, latin name _Spikus milligani_. This species is located across the very edge of Western Europe and is thought to be slowly increasing its range northwards and eastwards. It's thought to be very reliant on areas with a high range in rainfall and warmer temperatures. 
 
 The code to simulate this species' distribution is located in `/scripts/processing/simulate_species.R`. We then sample this true species distribution probabibalistically using the sum of GB's urban and suburban distribution. We did this to mimic the real life situation where people tend to go wildlife recording close to their homes. This process has generated the distribution of the hipporhinostricow (Figure 1).
 
-```{r load_species_data}
+```{r load_species_data, echo = FALSE}
 
 species_records <- read.csv("../../outputs/simulated_data/sampled_species_distrib.csv")[,-1]
 
@@ -89,6 +99,7 @@ initial_records_plot <-
   geom_point(data = species_records, aes(x,y)) +
   coord_sf() +
   theme_void()
+
 initial_records_plot +
   labs(caption = "Figure 1 The recorded distribution of the\nhipporhinostricow in Great Britain") +
   theme(text = element_text(size = 18),
@@ -122,6 +133,14 @@ species_rast_gb <- mask(species_rast, envdat[["elev"]]) # mask to GB
 species_sampled_distrib_df <- as.data.frame(species_rast_gb, xy = TRUE)
 colnames(species_sampled_distrib_df) <- c('x', 'y', 'observations')
 
+# Unvisited locations are any 0s!
+emp_criterion_absences <- species_sampled_distrib_df[species_sampled_distrib_df$observations == 0,]
+
+```
+
+
+```{r empirical_plot, echo = FALSE}
+
 # plot
 obssp_dsitrib <- ggplot(species_sampled_distrib_df, 
                         aes(x,y, fill = factor(observations))) +
@@ -146,10 +165,6 @@ if(write) {
   
 }
 
-# Unvisited locations are any 0s!
-emp_criterion_absences <- species_sampled_distrib_df[species_sampled_distrib_df$observations == 0,]
-
-
 ```
 
 
@@ -173,6 +188,11 @@ pseudoabs <- emp_criterion_absences[psedoabs_index,]
 # bind to observations
 speciesobs_df <- rbind(species_records, pseudoabs)
 
+```
+
+
+```{r pseuodabsences_plot, echo=FALSE}
+
 # visualise
 ggplot(speciesobs_df, aes(x, y, col = factor(observations))) +
   geom_point(size = 0.2) +
@@ -189,7 +209,7 @@ ggplot(speciesobs_df, aes(x, y, col = factor(observations))) +
 
 #### Modelling
 
-We fit a binomial GLM using these presences and pseudoabsences. We model this with four explanatory variables fitted as splines: the percentage of improved grassland, annual mean temperature, annual precipitation and a spatial spline. From this model we can then plot the prediction and the standard error back onto a map of GB. The standard error, as a measure of model uncertainty, is the model-based sampling metric that we will use to determine subsequent sampling. Targeting regions of high model uncertainty could be valuable for improving model performance.
+We fit a binomial GAM using these presences and pseudoabsences. We model this with four explanatory variables fitted as splines: the percentage of improved grassland, annual mean temperature, annual precipitation and a spatial spline. From this model we can then plot the prediction and the standard error back onto a map of GB. The standard error, as a measure of model uncertainty, is the model-based sampling metric that we will use to determine subsequent sampling. Targeting regions of high model uncertainty could be valuable for improving model performance.
 
 ```{r modelling}
 
@@ -233,9 +253,9 @@ modelbased_criterion <- na.omit(cbind(newx, newy))
 
 #### Extracting uncertainty
 
-We can extract model uncertainty across GB by predicting the standard error back onto the map of GB. Here we plot the predicted probability of presence (figure 4) and the standard error of the model (figure 5).
+We can extract model uncertainty across GB by predicting the standard error back onto the map of GB. Here we plot the predicted probability of presence (figure 4) and the standard error of the model (figure 5). The standard error will be our model-based uncertainty criterion which we will use to determine future sampling locations.
 
-```{r standard error}
+```{r standard error, echo = FALSE}
 
 # probability of presences
 ggplot(modelbased_criterion, aes(x, y, fill = fit)) +
@@ -280,18 +300,20 @@ if(write) {
 
 ## Step 2. Selection of new sampling occasions
 
-Important to choose the number of new locations versus number of batches. We're going to choose `r print(nlocs)` observations
+Once a criterion has been decided, we can then use it to choose new sampling locations. There are many approaches that can be used to do this. Here, we provide examples of two methods which broadly lie at opposite ends of the spectrum of possible approaches and apply these to both our empirical and model-based criterions. 
+
+We have chosen to take `r (nlocs)` new samples; i.e. `r (nlocs)` locations will be visited to determine the presence of the hipporhinostricow. We first use optimised selection methods to sample both our empirical and model-based criterions, and then use the independent draws method. For more information about the merits of each method, see the paper.
 
 ### Step 2a. Optimised
 
 #### Empirical method - optimised
 
-To do this, we will select a random location from all of the places that haven't already been visited (i.e. the empricial criterion). We will then remove all other unvisited locations within `r print(dist_apart)`m of it, and sample another point. This will be done until `r print(nlocs)` have been sampled (figure 6).
+First, we will sample our empirical criterion using an optimised approach. As a reminder, our empirical criterion is a spatial layer that identifies all unvisited locations. To sample from this in an optimised way, we select a random location from this criterion. We then remove all other locations within `r (dist_apart)`m of it and sample another point. This is done until we have sampled `r (nlocs)` locations (figure 6).
 
 
 ```{r empirical_optimised}
 
-# convert empirical absences to sf
+# convert empirical criterion metric (all absences) to an sf object
 emp_absences <- st_as_sf(emp_criterion_absences[,1:2], coords = c("x", "y"), crs = 27700)
 
 # save uncertainty layer into a new file that can have points removed
@@ -324,6 +346,11 @@ while(i<=nlocs) {
   
   i <- i+1
 }
+
+```
+
+
+```{r empirical_optimised_plot, echo=FALSE}
 
 # plot
 emp_optim <- ggplot() +
@@ -359,7 +386,7 @@ if(write) {
 
 #### Model-based - optimised
 
-We will select the location that has the highest model uncertainty. We will then remove all other unvisited locations within `r print(dist_apart)`m of it. Then we sample the location with the next highest uncertainty and repeat until `r print(nlocs)` have been sampled.
+We choose to optimise our sampling of the model-based criterion layer in the same way as for the empirical later. First, we select the location in GB that has the highest model uncertainty. Then, we  remove all other locations within `r (dist_apart)`m of this location, and then sample the location with the next highest uncertainty. We repeat this until `r (nlocs)` have been sampled.
 
 ```{r model-based_optimised}
 
@@ -404,6 +431,11 @@ while(i<=nlocs) {
   i <- i+1
 }
 
+```
+
+
+```{r model-based_optimised_plot}
+
 # plot
 model_optim <- ggplot() +
   geom_raster(data = modelbased_criterion, aes(x, y, fill = log(se.fit))) +
@@ -437,18 +469,27 @@ if(write) {
 
 ### Step 2b. Independent draws
 
-#### Empirical independent draws
+The alternative to optmising our choice of sampling locations is to select each location independently from one another.
 
-Randomly sample from all unvisited locations without replacement.
+We do this for both the empirical and model-based criterion layers.
+
+#### Empirical - independent draws
+
+For our independent draws method we randomly select `r (nlocs)` locations from the empirical criterion (figure 8).
 
 ```{r empirical_independent_draws}
 
-# unvisited areas
-emp_critind <- sample(1:nrow(emp_criterion_absences), nlocs) ## how many new locations are visited
+# Randomly sample from unvisited areas
+emp_critind <- sample(1:nrow(emp_criterion_absences), nlocs)
 
 # New locations visited
 emp_indepdraw_new_locs <- st_as_sf(emp_criterion_absences[emp_critind,], 
                                    coords = c("x", "y"), crs = 27700)
+
+```
+
+
+```{r empirical_independent_draws_plot, echo=FALSE}
 
 # plot
 empindep_draws <- ggplot() +
@@ -482,17 +523,23 @@ if(write) {
 
 ```
 
-#### Model-based indpendent draws
+#### Model-based - indpendent draws
 
-Select the 400 locations with the highest uncertainty
+For the model-based sampling method, we choose the `r (nlocs)` locations with the highest uncertainty (figure 9).
 
 ```{r model-based_independent_draws}
 
+# order all locations by decreasing standard error - highest uncertainty first
 sorted_data <- modelbased_criterion[order(modelbased_criterion$se.fit,
                                           decreasing = TRUE), ]
 
 top_uncert <- st_as_sf(sorted_data[1:nlocs, c("x", "y")], 
                        coords = c("x", "y"), crs = 27700)
+
+```
+
+
+```{r model-based_independent_draws_plot, echo=FALSE}
 
 # standard error + top error
 model_indep <- ggplot() +
@@ -526,33 +573,41 @@ if(write) {
 ```
 
 
-### Step 3. Rounds vs batches
+## Step 3. Rounds vs batch size
 
-In adaptive sampling there will be a decision to make about the number of rounds of adaptive sampling and how many points to sample at each time point. For example, if data collection involved a lot of organisation and a trip overseas, it might be that it's only possible to undertake a single collection incident In other cases, it might be that we are able to carry out sampling over several iterations, with the criterion layer recalculated at each step.
+Adaptive sampling is an inherently iterative process. This means that decisions need to be made about the number of rounds over which adaptive sampling will occur and the number of samples taking during each round. This decision will be study-specific. For example, if data collection involved a lot of organisation and a trip overseas, it might be that it's only possible to undertake a single collection incident. In other cases, it might be that we are able to carry out sampling over several iterations, with the criterion layer recalculated at each step.
 
-Here we show how this is possible. 
+As an example, here we carry out four rounds adaptive sampling, with a batch size of `r (round(nlocs/nrounds))`. The function below runs the whole adaptive sampling process using model uncertainty and an optimised sampling method, as outlined above. In each step it samples `r (round(nlocs/nrounds))` locations that are `r (dist_apart)`m apart and reruns the GAM using both the initial and new data. The results of this are showwn in Figure 10.
 
 ```{r rounds_and_batches}
 
 # Model rounds and batches
-as_batches <- adaptive_sampling_rounds(nbatches = 4,
-                                       total_number_locs = nlocs,
-                                       
-                                       # uncertainty layer from first model
-                                       modelbased_crit_sf = uncertsf,
-                                       
-                                       # the initial species records
-                                       # I could add batch to this so that we can account for batch number in the modelling?
-                                       initial_species_records = species_records,
-                                       
-                                       # distance between records to maintain
-                                       distance_apart = dist_apart)
+as_rounds <- adaptive_sampling_rounds(
+  
+  # number of rounds
+  nrounds = n_rounds,
+  
+  # number of locations in total
+  total_number_locs = nlocs,
+  
+  # uncertainty layer from first model
+  modelbased_crit_sf = uncertsf,
+  
+  # the initial species records
+  # I could add round to this so that we can account for round number in the modelling?
+  initial_species_records = species_records,
+  
+  # distance between records to maintain
+  distance_apart = dist_apart,
+  
+  # true species distribution - for checking whether new samples find a species
+  true_spp_distrib = species_distrib_rast
+)
 
 ```
 
 
-```{r plotting batches}
-
+```{r plotting rounds, echo = FALSE}
 
 ## get initial uncertainty data bound to AS uncert
 
@@ -560,29 +615,27 @@ as_batches <- adaptive_sampling_rounds(nbatches = 4,
 initial_uncert_data <- data.frame(x = st_coordinates(uncertsf)[,1],
                                   y = st_coordinates(uncertsf)[,2],
                                   se.fit = uncertsf$se.fit, 
-                                  batch = 'initial')
+                                  round = 'initial')
 
 # bind to the new uncertainty layers
-all_uncert_data <- rbind(initial_uncert_data, as_batches[["model_uncertainty"]])
+all_uncert_data <- rbind(initial_uncert_data, as_rounds[["model_uncertainty"]])
 
-# remove batch #4 - no fifth round of adaptive sampling
-all_uncert_data <- all_uncert_data[all_uncert_data$batch != 4,]
+# remove round #4 - no fifth round of adaptive sampling
+all_uncert_data <- all_uncert_data[all_uncert_data$round != 4,]
 
-# convert the batch number to factor and rename
-new_locations <- as_batches[["all_adaptive_locations"]]
+# convert the round number to factor and rename
+new_locations <- as_rounds[["all_adaptive_locations"]]
 
-new_locations$batch <- factor(new_locations$batch)
-all_uncert_data$batch <- factor(all_uncert_data$batch, levels = c("initial", 1, 2, 3))
+new_locations$round <- factor(new_locations$round)
+all_uncert_data$round <- factor(all_uncert_data$round, levels = c("initial", 1, 2, 3))
 
-levels(new_locations$batch) <- c("Batch 1","Batch 2",
-                                 "Batch 3","Batch 4")
-levels(all_uncert_data$batch) <- c("Batch 1","Batch 2",
-                                   "Batch 3","Batch 4")
-
-
+levels(new_locations$round) <- c("Round 1","Round 2",
+                                 "Round 3","Round 4")
+levels(all_uncert_data$round) <- c("Round 1","Round 2",
+                                   "Round 3","Round 4")
 
 # plot
-model_batch <- ggplot() +
+model_round <- ggplot() +
   geom_raster(data = all_uncert_data, aes(x, y, fill = log(se.fit))) +
   scale_fill_viridis_c(name = "Standard error", 
                        end = 0.9) +
@@ -603,8 +656,8 @@ model_batch <- ggplot() +
   guides(fill = "none") +
   # scale_colour_manual(name = "Species\npresence", values = c("black", "grey")) +
   
-  facet_wrap(~batch, ncol = 2)
-model_batch +
+  facet_wrap(~round, ncol = 2)
+model_round +
   labs(caption = "Figure 10 Optimised selection of model-based sampling\nlocations spread over four rounds of adaptive sampling") +
   theme(text = element_text(size = 18),
         plot.caption.position = "plot")
@@ -612,16 +665,19 @@ model_batch +
 
 if(write) {
   
-  ggsave(model_batch, 
-         file = "../../outputs/plots/batch_adaptive_sampling.png",
+  ggsave(model_round, 
+         file = "../../outputs/plots/round_adaptive_sampling.png",
          height = 6, width = 5)
   
 }
 
 ```
 
+## New data
 
-```{r new records}
+This adaptive sampling process results in a set of new data (figure 11). 
+
+```{r new records, echo = FALSE}
 
 new_records_plot <- 
   ggplot() +

@@ -135,8 +135,9 @@ model_predict <- function(datato_model, environ_data, printsum = FALSE) {
 adaptive_sampling_rounds <- function(modelbased_crit_sf,
                                      initial_species_records,
                                      distance_apart,
-                                     nbatches,
-                                     total_number_locs) {
+                                     nrounds,
+                                     total_number_locs,
+                                     true_spp_distrib) {
   
   # convert initial points to sf object
   initial_species_records_sf <- st_as_sf(initial_species_records[,c("x", "y")], 
@@ -149,16 +150,16 @@ adaptive_sampling_rounds <- function(modelbased_crit_sf,
   modeluncertainty_out <- data.frame() # storing model uncertainty
   
   # print statement
-  print(paste("Sampling", round(total_number_locs/nbatches), "per batch. Number of batches =", nbatches))
+  print(paste("Sampling", round(total_number_locs/nrounds), "per round. Number of rounds =", nrounds))
   
   ## start of for loop
-  for(batch_num in 1:nbatches) {
+  for(round_num in 1:nrounds) {
     
-    print(paste("Batch", batch_num))
+    print(paste("Round", round_num))
     
     #### remove sampling occasions close to existing records (from adaptive sampling)
     # ideally would include the old locations too but would take AGES to run.
-    if(batch_num>1){
+    if(round_num>1){
       print(paste("Removing potential sampling occasions within", distance_apart, "m of previous adaptively sampled locations"))
       
       # convert new records to sf
@@ -191,15 +192,15 @@ adaptive_sampling_rounds <- function(modelbased_crit_sf,
     {
       
       ## sample locations optimally from model uncertainty
-      batch <- optimise_sampling_uncertainty(uncertainty_dataframe = modelbased_crit_sf,
-                                             number_locactions = round(total_number_locs/nbatches))
+      as_round <- optimise_sampling_uncertainty(uncertainty_dataframe = modelbased_crit_sf,
+                                             number_locactions = round(total_number_locs/nrounds))
       
       ## check whether they find new records - Go out and sample observations
-      new_locs <- check_distrib(new_records = terra::vect(batch), 
-                                true_species_distrib = species_distrib_rast)
+      new_locs <- check_distrib(new_records = terra::vect(as_round), 
+                                true_species_distrib = true_spp_distrib)
       
       ## store new species observations
-      new_locs$batch <- batch_num
+      new_locs$round <- round_num
       
       # store new locs including locations where species wasn't
       new_locs_out <- rbind(new_locs_out, 
@@ -215,7 +216,7 @@ adaptive_sampling_rounds <- function(modelbased_crit_sf,
     {
       ## bind to initial records
       all_records <- rbind(initial_species_records[,1:2], 
-                           new_locs_out[new_locs_out$observations==1, c("x", "y")]) ## should we add batch to this so that we can account for it in the modelling?
+                           new_locs_out[new_locs_out$observations==1, c("x", "y")]) ## should we add round to this so that we can account for it in the modelling?
       
       ## remove duplicates for modelling
       all_records <- all_records[!duplicated(all_records),]
@@ -243,8 +244,8 @@ adaptive_sampling_rounds <- function(modelbased_crit_sf,
       # get standard error
       modeluncertainty <- modelpredictions[,c("x", "y", "se.fit")]
       
-      # add batch number
-      modeluncertainty$batch <- batch_num
+      # add round number
+      modeluncertainty$round <- round_num
       
       # store
       modeluncertainty_out <- rbind(modeluncertainty_out, modeluncertainty)
