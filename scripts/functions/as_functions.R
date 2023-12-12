@@ -242,7 +242,7 @@ adaptive_sampling_rounds <- function(modelbased_crit_sf,
     print(paste("Getting uncertainty"))
     {
       # get standard error
-      modeluncertainty <- modelpredictions[,c("x", "y", "se.fit")]
+      modeluncertainty <- modelpredictions[,c("x", "y", "fit", "se.fit")]
       
       # add round number
       modeluncertainty$round <- round_num

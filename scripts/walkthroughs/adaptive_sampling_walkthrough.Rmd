@@ -1,7 +1,6 @@
 ---
 title: "Adaptive sampling walkthrough"
-author: "TMM"
-date: "2023-10-24"
+date: ""
 output: html_document
 ---
 
@@ -42,7 +41,7 @@ plot(species_distrib_rast, main = "True species distribution")
 ```
 
 
-```{r choose_nlocs_dist}
+```{r choose_nlocs_dist, echo = FALSE}
 
 # choose number of new locations to sample and distance between them
 nlocs <- 1200
@@ -56,28 +55,29 @@ write = TRUE
 
 # Introduction
 
-This R notebook accompanies figure XX in the paper 'Adaptive sampling in ecology: current practice and future opportunities'. Here, we aim to demonstrate how adaptive sampling can be used in an ecological setting. For this, we take the case of species distribution models, where we are aiming to improve our knowledge of species' distributions.
+This R notebook accompanies Box 1 in the paper 'INSERT TITLE HERE'. Here, we aim to demonstrate how adaptive sampling can be used in an ecological setting. For this, we take the case of a monitoring programme that is aiming to improve our knowledge of a species' distribution.
 
 This will follow several steps:
 
-0. Data - Generate initial data
-1. Defining a criterion
-    - 1a. Empirical
-    - 1b. Model-based
-2. Selection of new sampling occasions
-    - 2a. Optimised
-    - 2b. Independent draws
-3. Sampling activity
-    - Rounds vs batches
+1. Data - Generate initial data
+2. Defining a criterion
+- 2a. Empirical
+- 2b. Model-based
+3. Selection of new sampling occasions
+- 3a. Optimised
+- 3b. Independent draws
+4. Sampling activity
+- Rounds vs batches
 
+In this example, we will be aiming to improve our knowledge of the distribution of the hipporhinostricow, _Spikus milligani_. This elusive species is generally found by carrying out night-time surveys, when the easiest way to find it is through its loud whistle-type call. It is easily identifiable through its cow-like body and legs, its long neck and a rhinocerous-like horn. It is found across the very edge of continental Western Europe and is thought to be slowly increasing its range northwards and eastwards. It has so far been found most of the way along the western coast of Great Britain (GB), but we do not believe that we have sampled its entire range.
 
 # Adaptive sampling
 
-## Step 0. Generation of initial data
+## Step 1. Generate initial data
 
-For any adaptive sampling programme, we first need some initial data on which we can base our further sampling. Here, we use the simulated distribution of the hipporhinostricow, latin name _Spikus milligani_. This species is located across the very edge of Western Europe and is thought to be slowly increasing its range northwards and eastwards. It's thought to be very reliant on areas with a high range in rainfall and warmer temperatures. 
+For any adaptive sampling programme, we first need some initial data on which we can base our further sampling. As discussed in the paper, these data can take many forms, from the results of professional surveys through to expert knowledge. Importantly, these initial data do not necessarily need to be of the same type and structure as the data we wish to generate. For this example we will assume that the records of the hipporhinostricow have been sampled opportunistically, i.e. these data are not from professional surveys. Therefore, our data will only have information on presences rather than absences. 
 
-The code to simulate this species' distribution is located in `/scripts/processing/simulate_species.R`. We then sample this true species distribution probabibalistically using the sum of GB's urban and suburban distribution. We did this to mimic the real life situation where people tend to go wildlife recording close to their homes. This process has generated the distribution of the hipporhinostricow (Figure 1).
+The code to simulate this species' distribution is located in `/scripts/processing/simulate_species.R`. We simulated the species' true distribution and then sampled it probabibilistically. The probabilistic sampling was biased according to the distribution of urban and suburban habitat across GB, and latitude, with more samples from the southern parts of GB. This mimics the real-life situation where people tend to record wildlife close to their homes and that there are generally more records from areas with a higher population density. This produced the recorded distribution of the hipporhinostricow (figure 1).
 
 ```{r load_species_data, echo = FALSE}
 
@@ -97,12 +97,14 @@ initial_records_plot <-
   ggplot() +
   geom_sf(data = gboutline) +
   geom_point(data = species_records, aes(x,y)) +
-  coord_sf() +
+  coord_sf(crs = 27700) +
   theme_void()
 
 initial_records_plot +
+  theme_bw() +
   labs(caption = "Figure 1 The recorded distribution of the\nhipporhinostricow in Great Britain") +
   theme(text = element_text(size = 18),
+        axis.text.x = element_text(angle=90, hjust=1),
         plot.caption.position = "plot")
 
 if(write){
@@ -113,27 +115,30 @@ if(write){
 
 ```
 
-## Step 1. Definition of a criterion
+## Step 2. Definition of a criterion
 
-The first step in the adaptive sampling process is to define a criterion layer, which is a layer that contains our sampling priorities. It is from this layer that we choose locations at which to carry out further sampling. This can broadly be done in two ways, using empirical methods or model-based methods. There are many ways in which this can be done but we demonstrate only one of each here. See the paper for more examples.
+The second step in the adaptive sampling process is to define a criterion, which is used to decide which elements of the sampling design to alter. It is from this layer that we choose locations in which to carry out further sampling. There are many ways in which the initial data can be used, which depend on the question of interest. Here, we provide two examples, an empirical method and a model-based method. See the paper for more information.
 
-### Step 1a. Empirical criterion
+### Step 2a. Empirical criterion
 
-An empirical criterion involves using only the data to determine locations for further sampling. Here, we identify regions that have not yet been sampled. In the code below, we convert our species records into a 1km binary raster format for presences (`1`) and absences (`0`). This creates a raster map of the species' distribution which will be our *empirical sampling layer* (figure 2).
+An empirical criterion uses only the raw data to determine locations for further sampling. In this example, we identify regions that have not yet been sampled. In the code below, we convert our species records into a 1km binary grid of presences (`1`) and absences (`0`). This can be used to create a map of the species' distribution. The absences in this distribution map will be our *empirical sampling criterion* (figure 2).
 
 
 ```{r empirical}
 
-# convert species records to raster
+# convert species records to raster format
 species_rast <- rasterize(x = as.matrix(species_records[,1:2]), y = envdat[["elev"]], 
-                          values = 1, background = 0)
-species_rast_gb <- mask(species_rast, envdat[["elev"]]) # mask to GB
+                          values = 1, # give presences 1
+                          background = 0) # give absences 0
 
-## visualise
+# mask to GB using elevation data layer - sets sea to NA
+species_rast_gb <- mask(species_rast, envdat[["elev"]]) 
+
+# convert back to a data frame for sampling and plotting  
 species_sampled_distrib_df <- as.data.frame(species_rast_gb, xy = TRUE)
 colnames(species_sampled_distrib_df) <- c('x', 'y', 'observations')
 
-# Unvisited locations are any 0s!
+# define the criterion layer - unvisited areas are 0
 emp_criterion_absences <- species_sampled_distrib_df[species_sampled_distrib_df$observations == 0,]
 
 ```
@@ -141,7 +146,7 @@ emp_criterion_absences <- species_sampled_distrib_df[species_sampled_distrib_df$
 
 ```{r empirical_plot, echo = FALSE}
 
-# plot
+# plot the distribution
 obssp_dsitrib <- ggplot(species_sampled_distrib_df, 
                         aes(x,y, fill = factor(observations))) +
   geom_raster() +
@@ -152,9 +157,12 @@ obssp_dsitrib <- ggplot(species_sampled_distrib_df,
   
   theme_void() +
   theme(text = element_text(size = 30))
+
 obssp_dsitrib +
-  labs(caption = "Figure 2 The empirical sampling layer containing information\nabout hipporhinostricow presences and absences across GB") +
+  theme_bw() +
+  labs(caption = "Figure 2 The empirical sampling criterion containing information\nabout hipporhinostricow presences and absences across GB") +
   theme(text = element_text(size = 18),
+        axis.text.x = element_text(angle=90, hjust=1),
         plot.caption.position = "plot")
 
 if(write) {
@@ -168,24 +176,24 @@ if(write) {
 ```
 
 
-### Step 1b. Model-based criterion
+### Step 2b. Model-based criterion
 
-In a model-based adaptive sampling criterion, further sampling is based on some aspect of a model. Here, we will model the species distribution as a function of several environmental variables using GAMs. Then we will use the standard error as our measure of uncertainty on which to base further sampling.
+In a model-based approach to adaptive sampling, the initial data are used to create a model, sampling is then based on optimising some feature of this model. Here, we create a species distribution model (SDM) of the hipporhinostricow as a function of several environmental variables using a Generalised Additive Model (GAM). We then extract the standard error of the model predictions to use as our measure of model-based uncertainty. This creates our *model-based criterion*.
 
 #### Pseudoabsences
 
-Before running our models, we first need to determine absences. In many SDM studies we have only presence data, and so the choice of method to get pseudoabsences is important. For simplicity, we choose to use a random background approach as we are not interested in its effect on model performance. We will randomly sample the same number of points as there were presences from all of the locations which do not already have records (figure 3).
+Because our data on the distribution ofd the hipporhinostricow were collected opportunistically, we don't have any definitive information about absences. Therefore, we need to generate pseudoabsences before running our models. The choice of method to generate pseudoabsences is important and there is a wealth of literature about how to do this depending on your question of interest. For simplicity, we choose to use a random background approach as we are not interested in the effect of pseudoabsence generation method on model performance (which is likely to be significant). We will randomly sample the same number of points as there were presences from all of the locations in which there are no current records (figure 3).
 
 ```{r pseudoabsences}
 
-# randomly sample
+# randomly sample from the empirical criterion layer - equal number as number of presences
 psedoabs_index <- sample(1:nrow(emp_criterion_absences), 
                          size = sum(species_sampled_distrib_df$observations==1))
 
 # extract pseudoabsences
 pseudoabs <- emp_criterion_absences[psedoabs_index,]
 
-# bind to observations
+# bind back to observations
 speciesobs_df <- rbind(species_records, pseudoabs)
 
 ```
@@ -196,31 +204,28 @@ speciesobs_df <- rbind(species_records, pseudoabs)
 # visualise
 ggplot(speciesobs_df, aes(x, y, col = factor(observations))) +
   geom_point(size = 0.2) +
-  coord_sf() +
+  coord_sf(crs = 27700) +
   scale_colour_manual(name = '', labels = c("Pseudoabsences", "Presences"),
                       values = c("#E69F00", "#009E73")) +
   
   theme_bw() +
   labs(caption = "Figure 3 The presences and pseudoabsences of\nthe hipporhinostricow in GB used for modelling") +
   theme(text = element_text(size = 18),
+        axis.text.x = element_text(angle=90, hjust=1),
         plot.caption.position = "plot")
 
 ```
 
 #### Modelling
 
-We fit a binomial GAM using these presences and pseudoabsences. We model this with four explanatory variables fitted as splines: the percentage of improved grassland, annual mean temperature, annual precipitation and a spatial spline. From this model we can then plot the prediction and the standard error back onto a map of GB. The standard error, as a measure of model uncertainty, is the model-based sampling metric that we will use to determine subsequent sampling. Targeting regions of high model uncertainty could be valuable for improving model performance.
+We fit a binomial GAM using the presences and pseudoabsences shown in figure 3. We model this with four explanatory variables fitted as splines: the percentage of improved grassland, annual mean temperature, annual precipitation and a spatial spline which combines the x and y coordinates. From this model we then plot the prediction and standard error back onto a map of GB (figures 4 and 5). The standard error, as a measure of model uncertainty, is the model-based criterion that we will use to determine subsequent sampling (figure 5). Targeting regions of high model uncertainty could be valuable for improving model performance and hence our ability to draw inference about the distribution of the hipporhinostricow.
 
 ```{r modelling}
 
-## get environmental data for each observation -- extract() from envdat
-# choose the variables used to simulate the species and a few others
-
-# extract data
+# extract environmental data for all observations
 recsdf <- cbind(speciesobs_df, 
                 terra::extract(envdat, speciesobs_df[1:2], 
                                xy = FALSE, method = "simple"))
-# head(recsdf)
 
 # model - simple model with few explanatory variables
 gammod <- gam(observations ~ s(impr_grass) +
@@ -232,7 +237,7 @@ gammod <- gam(observations ~ s(impr_grass) +
 summary(gammod)
 # plot(gammod)
 
-# convert environmental raster to data frame
+# convert environmental raster to a data frame for prediction
 edatdf <- as.data.frame(envdat[[c("impr_grass", "elev", "bio_1", "bio_12")]],
                         na.rm = TRUE,
                         xy = TRUE)
@@ -246,26 +251,27 @@ newy <- predict(gammod,
                 type = "response",
                 se.fit = TRUE)
 
+# create the model based criterion data frame
 modelbased_criterion <- na.omit(cbind(newx, newy))
-
 
 ```
 
 #### Extracting uncertainty
 
-We can extract model uncertainty across GB by predicting the standard error back onto the map of GB. Here we plot the predicted probability of presence (figure 4) and the standard error of the model (figure 5). The standard error will be our model-based uncertainty criterion which we will use to determine future sampling locations.
+Here, we plot the predicted probability of presence (figure 4) and the standard error of the model (figure 5). The standard error is our model-based uncertainty criterion which we will use to determine future sampling locations.
 
 ```{r standard error, echo = FALSE}
 
 # probability of presences
 ggplot(modelbased_criterion, aes(x, y, fill = fit)) +
   geom_tile() +
-  coord_sf() +
+  coord_sf(crs = 27700) +
   scale_fill_viridis_c(name = "Probability of presence") +
   
   theme_bw() +
   labs(caption = "Figure 4 The predicted distribution of the\nhipporhinostricow in Great Britain") +
   theme(text = element_text(size = 18),
+        axis.text.x = element_text(angle=90, hjust=1),
         plot.caption.position = "plot")
 
 # standard error 
@@ -281,9 +287,12 @@ model_based_crit_plot <- ggplot(modelbased_criterion,
   
   theme_void() +
   theme(text = element_text(size = 30))
+
 model_based_crit_plot +
+  theme_bw() +
   labs(caption = "Figure 5 The standard error of the predicted distribution\nof the hipporhinostricow in Great Britain") +
   theme(text = element_text(size = 18),
+        axis.text.x = element_text(angle=90, hjust=1),
         plot.caption.position = "plot")
 
 if(write) {
@@ -298,20 +307,21 @@ if(write) {
 ```
 
 
-## Step 2. Selection of new sampling occasions
+## Step 3. Selection of new sampling occasions
 
-Once a criterion has been decided, we can then use it to choose new sampling locations. There are many approaches that can be used to do this. Here, we provide examples of two methods which broadly lie at opposite ends of the spectrum of possible approaches and apply these to both our empirical and model-based criterions. 
+Once the criterion has been defined, we can then use it to choose new sampling locations. There are many approaches that can be used to do this. Here, we provide examples of two methods which broadly lie at opposite ends of a spectrum of possible approaches. We apply these methods to both our empirical and model-based criterions. 
 
-We have chosen to take `r (nlocs)` new samples; i.e. `r (nlocs)` locations will be visited to determine the presence of the hipporhinostricow. We first use optimised selection methods to sample both our empirical and model-based criterions, and then use the independent draws method. For more information about the merits of each method, see the paper.
+We have chosen to sample `r (nlocs)` new locations to look for the hipporhinostricow.
+We first use an optimised method and then use an empircal method to sample from our two criterions. For more information about the merits of different sampling methods, see the paper.
 
-### Step 2a. Optimised
+### Step 3a. Optimised
 
 #### Empirical method - optimised
 
-First, we will sample our empirical criterion using an optimised approach. As a reminder, our empirical criterion is a spatial layer that identifies all unvisited locations. To sample from this in an optimised way, we select a random location from this criterion. We then remove all other locations within `r (dist_apart)`m of it and sample another point. This is done until we have sampled `r (nlocs)` locations (figure 6).
+First, we will sample our empirical criterion using an optimised approach. As a reminder, our empirical criterion is a spatial layer that identifies all unvisited locations. To sample from this in an optimised way, we select a random location from this criterion. We then remove all other locations within `r (dist_apart)`m of it and sample another point. Drawing samples that are a minimum distance from each other could be beneficial by preventing locations that are very close together from being visited. We do this done until `r (nlocs)` locations are sampled (figure 6).
 
 
-```{r empirical_optimised}
+```{r empirical_optimised, cache = TRUE}
 
 # convert empirical criterion metric (all absences) to an sf object
 emp_absences <- st_as_sf(emp_criterion_absences[,1:2], coords = c("x", "y"), crs = 27700)
@@ -332,10 +342,10 @@ while(i<=nlocs) {
   # store that point
   empabsoutdf <- rbind(empabsoutdf, sampled_point)
   
-  # remove the highest point from the data frame
+  # remove that locationS from the data frame
   emp_abs_sftoedit <- emp_abs_sftoedit[-sampled_point_ind,]
   
-  # find all points within x distance of highest uncert
+  # find all points within dist_apart of this point
   absence_points_nearby <- unlist(st_is_within_distance(sampled_point, emp_abs_sftoedit,
                                                         dist = dist_apart))
   
@@ -358,7 +368,7 @@ emp_optim <- ggplot() +
   scale_fill_manual(name = '', labels = c("Absences", "Observations"),
                     values = c("#E69F00", "#009E73")) +
   geom_sf(data = empabsoutdf, aes(colour = "New recording\nlocations")) +
-  coord_sf(expand = FALSE) +
+  coord_sf(crs = 27700, expand = FALSE) +
   scale_colour_manual(name = "", values = "black") +
   # ylim(0, 350000) +
   ylim(622500, 980000) +
@@ -367,9 +377,12 @@ emp_optim <- ggplot() +
   theme_void() +
   theme(text = element_text(size = 25)) +
   guides(fill = "none", colour = "none")
+
 emp_optim +
+  theme_bw() +
   labs(caption = "Figure 6 Optimised selection of empirical sampling locations") +
   theme(text = element_text(size = 18),
+        axis.text.x = element_text(angle=90, hjust=1),
         plot.caption.position = "plot")
 
 if(write) {
@@ -386,12 +399,12 @@ if(write) {
 
 #### Model-based - optimised
 
-We choose to optimise our sampling of the model-based criterion layer in the same way as for the empirical later. First, we select the location in GB that has the highest model uncertainty. Then, we  remove all other locations within `r (dist_apart)`m of this location, and then sample the location with the next highest uncertainty. We repeat this until `r (nlocs)` have been sampled.
+We choose to optimise our sampling of the model-based criterion layer in the same way as for the empirical later. The model-based criterion is a map of standard error (uncertainty) of model predictions that was run using the initial data. To do this, we select the location in GB that has the highest model uncertainty. Then, we  remove all other locations within `r (dist_apart)`m of this location, and then sample the location with the next highest uncertainty. We repeat this until `r (nlocs)` have been sampled (figure 7).
 
-```{r model-based_optimised}
+```{r model-based_optimised, cache = TRUE}
 
 # get only uncertainty and coordinates from model based criterion
-modcrit_dfsub <- modelbased_criterion[,c("x", "y", "se.fit")]
+modcrit_dfsub <- modelbased_criterion[,c("x", "y", "fit", "se.fit")]
 
 # convert to sf
 uncertsf <- st_as_sf(modcrit_dfsub, coords = c("x", "y"), crs = 27700)
@@ -434,7 +447,7 @@ while(i<=nlocs) {
 ```
 
 
-```{r model-based_optimised_plot}
+```{r model-based_optimised_plot, echo = FALSE}
 
 # plot
 model_optim <- ggplot() +
@@ -442,7 +455,7 @@ model_optim <- ggplot() +
   scale_fill_viridis_c(name = "Standard error", 
                        end = 0.9) +
   geom_sf(data = uncertoutdf, aes(colour = "New recording\nlocations")) +
-  coord_sf(expand = FALSE) +
+  coord_sf(crs = 27700, expand = FALSE) +
   scale_colour_manual(name = "", values = "black") +
   # ylim(0, 350000) +
   ylim(622500, 980000) +
@@ -451,9 +464,12 @@ model_optim <- ggplot() +
   theme_void() +
   theme(text = element_text(size = 25)) +
   guides(fill = "none", colour = "none")
+
 model_optim +
+  theme_bw() +
   labs(caption = "Figure 7 Optimised selection of model-based sampling locations") +
   theme(text = element_text(size = 18),
+        axis.text.x = element_text(angle=90, hjust=1),
         plot.caption.position = "plot")
 
 if(write) {
@@ -467,11 +483,9 @@ if(write) {
 ```
 
 
-### Step 2b. Independent draws
+### Step 3b. Independent draws
 
-The alternative to optmising our choice of sampling locations is to select each location independently from one another.
-
-We do this for both the empirical and model-based criterion layers.
+The alternative to optmising our choice of sampling locations is to select each location independently from one another. This means that the sampling of one location is not dependent on any of the other locations being sampled.
 
 #### Empirical - independent draws
 
@@ -497,7 +511,7 @@ empindep_draws <- ggplot() +
   # geom_point(data = species_records, aes(x,y, colour = "original records"), size = 0.5) +
   geom_sf(data = emp_indepdraw_new_locs, 
           aes(colour = "New recording\nlocations")) +
-  coord_sf(expand = FALSE) +
+  coord_sf(crs = 27700, expand = FALSE) +
   scale_colour_manual(values = c("black"), name = "") +
   scale_fill_manual(name = '', labels = c("Absences", "Observations"),
                     values = c("#E69F00", "#009E73")) +
@@ -508,7 +522,9 @@ empindep_draws <- ggplot() +
   theme_void() +
   theme(text = element_text(size = 25)) +
   guides(fill = "none", colour = "none")
+
 empindep_draws +
+  theme_bw() +
   labs(caption = "Figure 8 Independent draws of empirical sampling locations") +
   theme(text = element_text(size = 18),
         plot.caption.position = "plot")
@@ -546,7 +562,7 @@ model_indep <- ggplot() +
   geom_raster(data=modelbased_criterion, aes(x, y, fill = log(se.fit))) +
   geom_sf(data=top_uncert, aes(colour = "New recording\nlocations")) +
   # geom_sf(data = gboutline, fill = NA) +
-  coord_sf(expand = FALSE) +
+  coord_sf(crs = 27700, expand = FALSE) +
   scale_fill_viridis_c(name = "Standard error", 
                        end = 0.9) +
   scale_colour_manual(name = "", values = "black") +
@@ -557,9 +573,12 @@ model_indep <- ggplot() +
   theme_void() +
   theme(text = element_text(size = 25)) +
   guides(fill = "none", colour = "none")
+
 model_indep +
+  theme_bw() +
   labs(caption = "Figure 9 Independent draws of model-based sampling locations") +
   theme(text = element_text(size = 18),
+        axis.text.x = element_text(angle=90, hjust=1),
         plot.caption.position = "plot")
 
 if(write) {
@@ -573,13 +592,13 @@ if(write) {
 ```
 
 
-## Step 3. Rounds vs batch size
+## Step 4. Rounds vs batch size
 
-Adaptive sampling is an inherently iterative process. This means that decisions need to be made about the number of rounds over which adaptive sampling will occur and the number of samples taking during each round. This decision will be study-specific. For example, if data collection involved a lot of organisation and a trip overseas, it might be that it's only possible to undertake a single collection incident. In other cases, it might be that we are able to carry out sampling over several iterations, with the criterion layer recalculated at each step.
+Adaptive sampling is an inherently iterative process. This means that decisions need to be made about the number of rounds over which adaptive sampling will occur and the number of samples taking during each round. This decision will be study-specific. For example, if data collection involved a lot of organisation and a trip overseas, it might be that it's only possible to undertake a single collection incident. In other cases, it might be that we are able to carry out sampling over several iterations, with the criterion recalculated at each step.
 
-As an example, here we carry out four rounds adaptive sampling, with a batch size of `r (round(nlocs/nrounds))`. The function below runs the whole adaptive sampling process using model uncertainty and an optimised sampling method, as outlined above. In each step it samples `r (round(nlocs/nrounds))` locations that are `r (dist_apart)`m apart and reruns the GAM using both the initial and new data. The results of this are showwn in Figure 10.
+As an example, here we carry out four rounds adaptive sampling, with a batch size of `r (round(nlocs/n_rounds))`. The function below runs an optimised model-based adaptive sampling design, as outlined above. In each step it samples `r (round(nlocs/n_rounds))` locations that are `r (dist_apart)`m apart and reruns the GAM using both the initial and new data. The results of this are shown in Figure 10.
 
-```{r rounds_and_batches}
+```{r rounds_and_batches, cache = TRUE}
 
 # Model rounds and batches
 as_rounds <- adaptive_sampling_rounds(
@@ -594,26 +613,26 @@ as_rounds <- adaptive_sampling_rounds(
   modelbased_crit_sf = uncertsf,
   
   # the initial species records
-  # I could add round to this so that we can account for round number in the modelling?
   initial_species_records = species_records,
   
   # distance between records to maintain
   distance_apart = dist_apart,
   
-  # true species distribution - for checking whether new samples find a species
+  # true species distribution - for checking whether new samples find the species
   true_spp_distrib = species_distrib_rast
 )
 
 ```
 
 
-```{r plotting rounds, echo = FALSE}
+```{r plotting rounds, echo = FALSE, fig.width=12}
 
-## get initial uncertainty data bound to AS uncert
+## for plotting need to add the initial uncertainty to the data frame and remove the fourth round of sampling. First round of adaptive sampling was based on the initial model's uncertainty and there is no fifth round
 
 # get the initial uncertainty layer as dataframe
 initial_uncert_data <- data.frame(x = st_coordinates(uncertsf)[,1],
                                   y = st_coordinates(uncertsf)[,2],
+                                  fit = uncertsf$fit,
                                   se.fit = uncertsf$se.fit, 
                                   round = 'initial')
 
@@ -626,6 +645,7 @@ all_uncert_data <- all_uncert_data[all_uncert_data$round != 4,]
 # convert the round number to factor and rename
 new_locations <- as_rounds[["all_adaptive_locations"]]
 
+# rename to rounds
 new_locations$round <- factor(new_locations$round)
 all_uncert_data$round <- factor(all_uncert_data$round, levels = c("initial", 1, 2, 3))
 
@@ -640,7 +660,7 @@ model_round <- ggplot() +
   scale_fill_viridis_c(name = "Standard error", 
                        end = 0.9) +
   geom_point(data = new_locations, aes(x,y), size = 0.8) +#,colour = factor(observations))) +
-  coord_sf(expand = FALSE) +
+  coord_sf(crs = 27700, expand = FALSE) +
   # ylim(0, 350000) +
   ylim(622500, 980000) +
   xlim(45000, 425000) +
@@ -660,6 +680,7 @@ model_round <- ggplot() +
 model_round +
   labs(caption = "Figure 10 Optimised selection of model-based sampling\nlocations spread over four rounds of adaptive sampling") +
   theme(text = element_text(size = 18),
+        axis.text.x = element_text(angle=90, hjust=1),
         plot.caption.position = "plot")
 
 
@@ -673,9 +694,11 @@ if(write) {
 
 ```
 
+As you can see, in each round new sampling locations are chosen based on the underlying model uncertainty whilst ensuring that they are at least `r (dist_apart)`m from samples in the current round and all previous rounds. In each round, the underlying uncertainty layer changes because of the new observations selected in the last round.
+
 ## New data
 
-This adaptive sampling process results in a set of new data (figure 11). 
+This adaptive sampling process results in a set of new data (figure 11).
 
 ```{r new records, echo = FALSE}
 
@@ -683,11 +706,14 @@ new_records_plot <-
   ggplot() +
   geom_sf(data = gboutline) +
   geom_point(data = new_locations[new_locations$observations==1,], aes(x,y), colour="darkgreen") +
-  coord_sf() +
+  coord_sf(crs = 27700) +
   theme_void()
+
 new_records_plot +
+  theme_bw() +
   labs(caption = "Figure 11 New records of the hipporhinostricow\nobtained through four rounds of model-based adaptive sampling") +
   theme(text = element_text(size = 18),
+        axis.text.x = element_text(angle=90, hjust=1),
         plot.caption.position = "plot")
 
 if(write){
