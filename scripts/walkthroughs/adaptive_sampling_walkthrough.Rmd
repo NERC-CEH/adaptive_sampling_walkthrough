@@ -625,7 +625,7 @@ as_rounds <- adaptive_sampling_rounds(
 ```
 
 
-```{r plotting rounds, echo = FALSE, fig.width=12}
+```{r plotting rounds, echo = FALSE, fig.width=10}
 
 ## for plotting need to add the initial uncertainty to the data frame and remove the fourth round of sampling. First round of adaptive sampling was based on the initial model's uncertainty and there is no fifth round
 
