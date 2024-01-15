@@ -1,6 +1,6 @@
 # Emprirical and model-based adaptive sampling
 
-This repository contains code to support Box 1 in the paper "Adaptive sampling in ecology: current practice and future opportunities". The paper discusses the key principles of adaptive sampling, the various decisions and considerations required at each step and how it may be useful in ecological monitoring. The code here, provides a walkthrough of adaptive sampling using a simulated species, the hipporhinostricow. We outline the process of:
+This repository contains code to support Box 1 in the paper "Adaptive sampling in ecology: current practice and future opportunities". The paper discusses the key principles of adaptive sampling, the various decisions and considerations required at each step and how it may be useful in ecological monitoring. Please refer to it for more information. The code here, provides a walkthrough of adaptive sampling using a simulated species, the hipporhinostricow. We outline the process of:
 
 1. Using initial data to generate a criterion layer - a surface detailing sampling priorities
 2. Selecting sampling locations from this layer
@@ -14,8 +14,10 @@ All of the code is written in R v. and found in the `scripts/` folder. Only thre
 - `simulate_species.R` - simulate the distribution of hipporhinostricows
 - `adaptive_sampling_walkthrough.Rmd` - R markdown document outlining the entire adaptive sampling process 
 
+The third script, `adaptive_sampling_walkthrough.Rmd`, also produces all of the figures in Box 1 of the paper.
 
-The third script, `adaptive_sampling_walkthrough.Rmd`, also produces all of the figures in Box 1 of the paper. The name of the simulated speciesis from a poem by Spike Milligan which was read to me by my grandma as a child, and is very special to me:
+
+The name of the simulated species is from a poem by Spike Milligan which was read to me by my nan as a child, and is very special to me:
 
 
 ## The hipporhinostricow  
