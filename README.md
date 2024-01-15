@@ -6,7 +6,7 @@ This repository contains code to support Box 1 in the paper "Adaptive sampling i
 2. Selecting sampling locations from this layer
 3. Deciding on the sampling activity - rounds vs batch size
 
-
+<p align="center">
 ### The hipporhinostricow
 by Spike Milligan
 
@@ -20,3 +20,5 @@ If you laugh at the Hipporhinostricow
 You're bound to get into an awful row  
 The creature is protected you see  
 From Silly people like you and me  
+</p>
+
