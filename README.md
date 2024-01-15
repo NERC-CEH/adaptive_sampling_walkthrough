@@ -8,11 +8,16 @@ This repository contains code to support Box 1 in the paper "Adaptive sampling i
 
 ## Code outline
 
-All of the code is written in R v. and found in the `scripts/` folder. This contains three folders:
+All of the code is written in R v. and found in the `scripts/` folder. This contains three folders and three scripts:
 
 ```bash
 
 |- functions
+|  |- as_functions.R, all functions for adaptive sampling
+|- processing
+|  |- siumulate_species.R, simulate the distribution of hipporhinostricows
+|- walkthroughs
+|  |- adaptive_sampling_walkthrough.Rmd, R markdown document outlining the entire adaptive sampling process 
 
 ```
 
