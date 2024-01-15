@@ -26,7 +26,7 @@ find_empirical_absences <- function(recordsdf, # data frane of records with only
 
 
 ## get Pseudoabsences for model
-# get some pseudoabces randomly for running a model
+# get some pseudoabsences randomly for running a model
 # samples at random, no replacement
 # returns a dataframe of pseudoabsences
 get_pseudos <- function(n_pseudos, # number of pseudoabsences 
