@@ -11,8 +11,11 @@ This repository contains code to support Box 1 in the paper "Adaptive sampling i
 All of the code is written in R v. and found in the `scripts/` folder. Only three scripts are needed to carry out the adaptive sampling workflow:
 
 - `as_functions.R` - all functions for adaptive sampling
-- `siumulate_species.R` - simulate the distribution of hipporhinostricows
+- `simulate_species.R` - simulate the distribution of hipporhinostricows
 - `adaptive_sampling_walkthrough.Rmd` - R markdown document outlining the entire adaptive sampling process 
+
+
+The third script, `adaptive_sampling_walkthrough.Rmd`, also produces all of the figures in Box 1 of the paper. The name of the simulated speciesis from a poem by Spike Milligan which was read to me by my grandma as a child, and is very special to me:
 
 
 ## The hipporhinostricow  
