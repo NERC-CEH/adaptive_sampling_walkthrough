@@ -150,14 +150,15 @@ model_predict <- function(datato_model, # data to model
 
 
 ## Function to run rounds of adaptive sampling
-# run multiple rounds of adaptive sampling of same number of locations
-# returns new locations and model uncertainty after each model run
-adaptive_sampling_rounds <- function(modelbased_crit_sf,
-                                     initial_species_records,
-                                     distance_apart,
-                                     nrounds,
-                                     total_number_locs,
-                                     true_spp_distrib) {
+# run multiple rounds of model-based, optimised adaptive sampling, with same number of samples in each round
+# returns new locations where species was found and model uncertainty after each model run
+adaptive_sampling_rounds <- function(modelbased_crit_sf, # initial model uncertainty to use (sf object)
+                                     initial_species_records, # initial records of the species
+                                     distance_apart, # distance to ensure is maintained betwween samples
+                                     nrounds, # number of rounds
+                                     total_number_locs, # total number of locations across all rounds
+                                     true_spp_distrib) # the true species' distribution 
+{
   
   # convert initial points to sf object
   initial_species_records_sf <- st_as_sf(initial_species_records[,c("x", "y")], 
