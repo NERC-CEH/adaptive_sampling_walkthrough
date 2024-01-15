@@ -1,13 +1,17 @@
 
 
 ## empirical criterion generation - to get absences
-
-find_empirical_absences <- function(recordsdf, templaterast) {
+# takes a data frame of records and a raster to use as a template
+# converts the location of records into a binary raster with 1s for presence, 0s for absences
+# returns a dataframe of locations of absences
+find_empirical_absences <- function(recordsdf, # data frane of records with only lon and lat column  
+                                    templaterast) # raster to use as template 
+{
   
   # convert species records to raster
   locations_raster <- rasterize(x = as.matrix(recordsdf), y = templaterast, 
                                 values = 1, background = 0)
-  locations_raster_masked <- mask(species_rast, templaterast) # mask to GB
+  locations_raster_masked <- mask(locations_raster, templaterast) # mask to GB
   
   # convert to data frame
   raster_df <- as.data.frame(locations_raster_masked, xy = TRUE)
@@ -22,8 +26,12 @@ find_empirical_absences <- function(recordsdf, templaterast) {
 
 
 ## get Pseudoabsences for model
-
-get_pseudos <- function(n_pseudos, absence_dataframe) {
+# get some pseudoabces randomly for running a model
+# samples at random, no replacement
+# returns a dataframe of pseudoabsences
+get_pseudos <- function(n_pseudos, # number of pseudoabsences 
+                        absence_dataframe) # dataframe of absences
+{
   
   # randomly sample
   psedoabs_index <- sample(1:nrow(absence_dataframe), 
@@ -38,10 +46,12 @@ get_pseudos <- function(n_pseudos, absence_dataframe) {
 
 
 ## optimise sampling locations
-
-optimise_sampling_uncertainty <- function(uncertainty_dataframe, 
-                                          number_locactions, 
-                                          distance_apart = dist_apart){
+# select sampling locations ensuring dist_apart distnce between each location
+# returns new locations
+optimise_sampling_uncertainty <- function(uncertainty_dataframe, # dataframe of model uncertainty
+                                          number_locactions, # number of locations to choose
+                                          distance_apart = dist_apart) # distance between points in metres if using British national grid (only tested with BNG)
+{
   
   # order the uncertainty layer according to decreasing uncertainty - se.fit
   uncertaintytoedit <- uncertainty_dataframe[order(uncertainty_dataframe$se.fit,
@@ -81,8 +91,12 @@ optimise_sampling_uncertainty <- function(uncertainty_dataframe,
 
 
 
-## check whether they find new records
-check_distrib <- function(new_records, true_species_distrib) {
+## Verify locations againts the species' true distribution
+# do visited locations find the species?
+# returns new locations only
+check_distrib <- function(new_records, # sampling locations as dataframe [,c("x", "y")]
+                          true_species_distrib) # true species' distribution as a raster 
+{
   
   new_locs <- terra::extract(true_species_distrib, new_records, xy = TRUE)[,c("x", "y", "last")]
   colnames(new_locs) <- c("x", "y", "observations")
@@ -92,14 +106,18 @@ check_distrib <- function(new_records, true_species_distrib) {
 }
 
 
-## modelling - gams
-model_predict <- function(datato_model, environ_data, printsum = FALSE) {
+## Model data using games and predict back onto environmnetal data
+# would need to be changed if using different variables
+# Returns data frame of prediction and model uncertainty 
+model_predict <- function(datato_model, # data to model
+                          environ_data, # environmental data as a raster (terra)
+                          printsum = FALSE) # print summary() of gam model
+{
   
   print("!! modelling")
   
   # model - simple model with few explanatory variables
   gam_mod <- gam(observations ~ s(impr_grass) +
-                   # s(elev) + 
                    s(bio_1) +
                    s(bio_12) +
                    s(x,y),
@@ -131,7 +149,9 @@ model_predict <- function(datato_model, environ_data, printsum = FALSE) {
 
 
 
-# Function to run rounds of adaptive sampling
+## Function to run rounds of adaptive sampling
+# run multiple rounds of adaptive sampling of same number of locations
+# returns new locations and model uncertainty after each model run
 adaptive_sampling_rounds <- function(modelbased_crit_sf,
                                      initial_species_records,
                                      distance_apart,
