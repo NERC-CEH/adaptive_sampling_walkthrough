@@ -20,7 +20,7 @@ The third script, `adaptive_sampling_walkthrough.Rmd`, also produces all of the 
 The name of the simulated species is from a poem by Spike Milligan which was read to me by my nan as a child, and is very special to me:
 
 
-## The hipporhinostricow  
+## The Hipporhinostricow  
 by Spike Milligan
 
 
