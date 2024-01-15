@@ -6,5 +6,16 @@ This repository contains code to support Box 1 in the paper "Adaptive sampling i
 2. Selecting sampling locations from this layer
 3. Deciding on the sampling activity - rounds vs batch size
 
-![image](https://github.com/NERC-CEH/adaptive_sampling_walkthrough/assets/68549001/beed9f43-8776-45a7-9e2c-6c56ec0557b7)
 
+### The hipporhinostricow
+by Spike Milligan
+
+Such a beast is the Hipporhinostricow
+How it got so mixed up we'll never know how
+It sleeps all day and whistles all night
+And it wears yellow socks which are far too tight.
+
+If you laugh at the Hipporhinostricow
+You're bound to get into an awful row
+The creature is protected you see
+From Silly people like you and me
