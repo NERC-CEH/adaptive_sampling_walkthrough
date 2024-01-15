@@ -13,13 +13,15 @@ All of the code is written in R v. and found in the `scripts/` folder. This cont
 ```bash
 
 |- functions
-|  |- as_functions.R, all functions for adaptive sampling
-|- processing
-|  |- siumulate_species.R, simulate the distribution of hipporhinostricows
+|- processing 
 |- walkthroughs
-|  |- adaptive_sampling_walkthrough.Rmd, R markdown document outlining the entire adaptive sampling process 
+
 
 ```
+
+as_functions.R, all functions for adaptive sampling
+siumulate_species.R, simulate the distribution of hipporhinostricows
+adaptive_sampling_walkthrough.Rmd, R markdown document outlining the entire adaptive sampling process 
 
 
 ## The hipporhinostricow  
