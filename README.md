@@ -8,20 +8,11 @@ This repository contains code to support Box 1 in the paper "Adaptive sampling i
 
 ## Code outline
 
-All of the code is written in R v. and found in the `scripts/` folder. This contains three folders and three scripts:
+All of the code is written in R v. and found in the `scripts/` folder. Only three scripts are needed to carry out the adaptive sampling workflow:
 
-```bash
-
-|- functions
-|- processing 
-|- walkthroughs
-
-
-```
-
-as_functions.R, all functions for adaptive sampling
-siumulate_species.R, simulate the distribution of hipporhinostricows
-adaptive_sampling_walkthrough.Rmd, R markdown document outlining the entire adaptive sampling process 
+- `as_functions.R` - all functions for adaptive sampling
+- `siumulate_species.R` - simulate the distribution of hipporhinostricows
+- `adaptive_sampling_walkthrough.Rmd` - R markdown document outlining the entire adaptive sampling process 
 
 
 ## The hipporhinostricow  
