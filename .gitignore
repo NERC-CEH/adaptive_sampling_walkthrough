@@ -3,6 +3,7 @@ data/*
 outputs/*
 env_names.csv
 *.html
+scripts/walkthroughs/adaptive_sampling_walkthrough_files/*
 
 # History files
 .Rhistory
