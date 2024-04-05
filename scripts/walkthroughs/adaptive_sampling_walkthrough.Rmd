@@ -55,7 +55,7 @@ write = TRUE
 
 # Introduction
 
-This R notebook accompanies Box 1 in the paper 'INSERT TITLE HERE'. Here, we aim to demonstrate how adaptive sampling can be used in an ecological setting. For this, we take the case of a monitoring programme that is aiming to improve our knowledge of a species' distribution.
+This R notebook accompanies Box 1 in the paper 'Adaptive sampling in ecology: key challenges and future opportunities'. Here, we aim to demonstrate how adaptive sampling can be used in an ecological setting. For this, we take the case of a monitoring programme that is aiming to improve our knowledge of a species' distribution.
 
 This will follow several steps:
 
