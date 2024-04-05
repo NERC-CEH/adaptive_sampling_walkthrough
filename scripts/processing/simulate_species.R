@@ -23,6 +23,7 @@ scalevals <- function(x, maxval=100) {
 {
   #### create environmental raster
   # get some habitat data - landcover map 2015
+  # these data can be found here: https://catalogue.ceh.ac.uk/documents/0255c014-1630-4c2f-bc05-48a6400dd045 
   lcm2015 <- rast('data/lcm2015_1km_raster/data/LCM2015_GB_1km_percent_cover_target_class.tif')
   
   # create mnask of GB by summing all the layers together
@@ -39,6 +40,7 @@ scalevals <- function(x, maxval=100) {
   
   
   # elevation - bioclim elevation wc2.1 30s
+  # available here: https://www.worldclim.org/data/worldclim21.html
   elev <- rast('data/wc2.1_30s_elev/wc2.1_30s_elev.tif')
   elev_uk <- project(terra::crop(elev, y = ext(-8, 2.5, 49.5, 61)), y = "epsg:27700")
   names(elev_uk) <- gsub('wc2.1_30s_', replacement = '', names(elev_uk))
@@ -46,6 +48,7 @@ scalevals <- function(x, maxval=100) {
   # plot(elev_uk)
   
   # get some climate data - bioclim 2.1 30s
+  # available here: https://www.worldclim.org/data/worldclim21.html
   bioclimvar <- do.call(c, lapply(list.files('data/wc2.1_30s_bio/', full.names = TRUE),
                                   rast))
   bio_uk <- project(terra::crop(bioclimvar, y = ext(-8, 2.5, 49.5, 61)), y = "epsg:27700")
