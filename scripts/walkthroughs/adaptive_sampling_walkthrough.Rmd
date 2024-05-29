@@ -77,7 +77,7 @@ In this example, we will be aiming to improve our knowledge of the distribution 
 
 For any adaptive sampling programme, we first need some initial data on which we can base our further sampling. As discussed in the paper, these data can take many forms, from the results of professional surveys through to expert knowledge. Importantly, these initial data do not necessarily need to be of the same type and structure as the data we wish to generate. For this example we will assume that the records of the hipporhinostricow have been sampled opportunistically, i.e. these data are not from professional surveys. Therefore, our data will only have information on presences rather than absences. 
 
-The code to simulate this species' distribution is located in `/scripts/processing/simulate_species.R`. We simulated the species' true distribution and then sampled it probabibilistically. The probabilistic sampling was biased according to the distribution of urban and suburban habitat across GB, and latitude, with more samples from the southern parts of GB. This mimics the real-life situation where people tend to record wildlife close to their homes and that there are generally more records from areas with a higher population density. This produced the recorded distribution of the hipporhinostricow (figure 1).
+The code to simulate this species' distribution is located in `/scripts/processing/simulate_species.R`. We simulated the species' true distribution and then sampled it probabilistically. The probabilistic sampling was biased according to the distribution of urban and suburban habitat across GB, and latitude, with more samples from the southern parts of GB. This mimics the real-life situation where people tend to record wildlife close to their homes and that there are generally more records from areas with a higher population density. This produced the recorded distribution of the hipporhinostricow (figure 1).
 
 ```{r load_species_data, echo = FALSE}
 
@@ -182,7 +182,7 @@ In a model-based approach to adaptive sampling, the initial data are used to cre
 
 #### Pseudoabsences
 
-Because our data on the distribution ofd the hipporhinostricow were collected opportunistically, we don't have any definitive information about absences. Therefore, we need to generate pseudoabsences before running our models. The choice of method to generate pseudoabsences is important and there is a wealth of literature about how to do this depending on your question of interest. For simplicity, we choose to use a random background approach as we are not interested in the effect of pseudoabsence generation method on model performance (which is likely to be significant). We will randomly sample the same number of points as there were presences from all of the locations in which there are no current records (figure 3).
+Because our data on the distribution of the hipporhinostricow were collected opportunistically, we don't have any definitive information about absences. Therefore, we need to generate pseudoabsences before running our models. The choice of method to generate pseudoabsences is important and there is a wealth of literature about how to do this depending on your question of interest. For simplicity, we choose to use a random background approach as we are not interested in the effect of pseudoabsence generation method on model performance (which is likely to be significant). We will randomly sample the same number of points as there were presences from all of the locations in which there are no current records (figure 3).
 
 ```{r pseudoabsences}
 
@@ -312,7 +312,7 @@ if(write) {
 Once the criterion has been defined, we can then use it to choose new sampling locations. There are many approaches that can be used to do this. Here, we provide examples of two methods which broadly lie at opposite ends of a spectrum of possible approaches. We apply these methods to both our empirical and model-based criterions. 
 
 We have chosen to sample `r (nlocs)` new locations to look for the hipporhinostricow.
-We first use an optimised method and then use an empircal method to sample from our two criterions. For more information about the merits of different sampling methods, see the paper.
+We first use an optimised method and then use an empirical method to sample from our two criterions. For more information about the merits of different sampling methods, see the paper.
 
 ### Step 3a. Optimised
 
