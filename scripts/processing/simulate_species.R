@@ -149,6 +149,11 @@ points(x = sampled_species_distrib$x, y = sampled_species_distrib$y,
        pch = 4, col = "blue")
 
 #### write out data
+
+# create directories
+dir.create('outputs/simulated_data/', recursive = TRUE)
+dir.create('outputs/plots/', recursive = TRUE)
+
 # true species distribution raster
 writeRaster(true_distrib, 
             filename = 'outputs/simulated_data/true_species_distribution.tif',
