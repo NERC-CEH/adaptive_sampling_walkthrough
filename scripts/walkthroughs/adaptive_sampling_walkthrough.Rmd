@@ -43,12 +43,22 @@ plot(species_distrib_rast, main = "True species distribution")
 
 ```{r choose_nlocs_dist, echo = FALSE}
 
-# choose number of new locations to sample and distance between them
+# set the parameters for the adaptive sampling process
+
+# number of adaptively sampled locations in total
 nlocs <- 1200
+
+# minimum distance between sampling locations
 dist_apart <- 10000
+
+# number of sampling rounds
 n_rounds <- 4
 
-write = TRUE
+# crop the environmental extent - good for less powerful machines 
+crop_env_extent <- FALSE
+
+# write figure to file? 
+write <- TRUE
 
 ```
 
@@ -56,6 +66,8 @@ write = TRUE
 # Introduction
 
 This R notebook accompanies Box 1 in the paper 'Adaptive sampling in ecology: key challenges and future opportunities'. Here, we aim to demonstrate how adaptive sampling can be used in an ecological setting. For this, we take the case of a monitoring programme that is aiming to improve our knowledge of a species' distribution.
+
+Before continuing, please ensure that you have downloaded the required environmental data, as outlined in the README, and that you have run the `/scripts/processing/simulate_species.R` script. This produces the required data for running this walkthrough.
 
 This will follow several steps:
 
@@ -70,6 +82,8 @@ This will follow several steps:
 - Rounds vs batches
 
 In this example, we will be aiming to improve our knowledge of the distribution of the hipporhinostricow, _Spikus milligani_. This elusive species is generally found by carrying out night-time surveys, when the easiest way to find it is through its loud whistle-type call. It is easily identifiable through its cow-like body and legs, its long neck and a rhinocerous-like horn. It is found across the very edge of continental Western Europe and is thought to be slowly increasing its range northwards and eastwards. It has so far been found most of the way along the western coast of Great Britain (GB), but we do not believe that we have sampled its entire range.
+
+This code was run on a computer with 16GB of RAM. If you have a less powerful machine but still want to run the code in the paper, please crop the environmental data. You can do this manually or set `crop_env_extent` to `TRUE`.
 
 # Adaptive sampling
 
@@ -92,7 +106,6 @@ values(gboutline)[!is.na(values(gboutline))] <- 1
 gboutline <- as.polygons(gboutline)
 # plot(gboutline)
 
-
 initial_records_plot <- 
   ggplot() +
   geom_sf(data = gboutline) +
@@ -114,6 +127,25 @@ if(write){
 }
 
 ```
+
+```{r crop extent, include = FALSE}
+
+# crop the extent to southeast GB  for less powerful machines
+if(crop_env_extent) {
+  
+  # create empty raster
+  empty_ext <- rast()
+  
+  # define extent
+  ext(empty_ext) <- c(4e+05, 7e+05, 50000, 300000)
+  
+  # crop the environmental extent
+  envdat <- terra::crop(envdat, empty_ext)
+  
+}
+
+```
+
 
 ## Step 2. Definition of a criterion
 
