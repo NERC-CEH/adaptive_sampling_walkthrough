@@ -8,19 +8,19 @@ This repository contains code to support Box 1 in the paper "Adaptive sampling i
 
 ## Code overview
 
-Prior to starting, data need to be downloaded and placed in a folder called `data/` in your working directory. There are three datasets that need to be downloaded (as zipped files):
+Prior to starting, data need to be downloaded, unzipped, and placed in a folder called `data/` in your working directory. There are three datasets that need to be downloaded (as zipped files):
 
 1. Landcover data from the UKCEH Landcover Map 2015 (https://catalogue.ceh.ac.uk/documents/0255c014-1630-4c2f-bc05-48a6400dd045)
 2. Elevation data at 30s resolution provided by WorldClim (https://www.worldclim.org/data/worldclim21.html)
 3. Climate data at 30s resolution provided by WorldClim (https://www.worldclim.org/data/worldclim21.html)
-   
-All of the code is written in R v3.4.1 and found in the `scripts/` folder. Only three scripts are needed to carry out the adaptive sampling workflow:
+ 
+All of the code is written in R v3.4.1 and can be found in the `scripts/` folder. Only three scripts are needed to carry out the adaptive sampling workflow:
 
 - `as_functions.R` - all functions for adaptive sampling
 - `simulate_species.R` - simulate the distribution of hipporhinostricows (must be run first)
 - `adaptive_sampling_walkthrough.Rmd` - R markdown document outlining the entire adaptive sampling process 
 
-After these have been downloaded, the unzipped folders need to be placed in a `data/` subfolder. The `simulate_species.R` script must be run first. This simulates the distribution of hipporhinostricows across Great Britain and prepares the datasets for the rest of the walkthrough. Once this has been run it creates some sub-folders containing all the data needed to run the `adaptive_sampling_walkthrough.Rmd` script. The `adaptive_sampling_walkthrough.Rmd` script also produces all of the figures in Box 1 of the paper, which it stores in an automatically-generated folder, `outputs/plots/`.
+The `simulate_species.R` script must be run first. This simulates the distribution of hipporhinostricows across Great Britain and prepares the datasets for the rest of the walkthrough. Once this has been run it creates some sub-folders containing all the data needed to run the `adaptive_sampling_walkthrough.Rmd` script. The `adaptive_sampling_walkthrough.Rmd` script also produces all of the figures in Box 1 of the paper, which it stores in an automatically-generated folder, `outputs/plots/`.
 
 
 The name of the simulated species is from a poem by Spike Milligan which was read to me by my nan as a child, and is very special to me:
